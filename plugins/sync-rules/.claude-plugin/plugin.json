@@ -1,0 +1,11 @@
+{
+  "name": "sync-rules",
+  "version": "1.0.0",
+  "description": "Analyze project codebase and auto-generate .claude/rules/ for coding conventions, naming, testing, error handling, and architecture",
+  "author": {
+    "name": "Tsubasa"
+  },
+  "license": "Apache-2.0",
+  "repository": "https://github.com/almondoo/sync-rules",
+  "keywords": ["rules", "coding-standards", "conventions"]
+}

@@ -1,0 +1,275 @@
+---
+name: sync-rules
+description: >
+  Analyze project structure and config files to generate/sync .claude/rules/ with coding conventions,
+  naming rules, test strategy, error handling, and architecture rules.
+  Use for: "generate rules", "create coding conventions", "set up rules", "sync rules",
+  "create .claude/rules", "update rules", "organize project rules".
+---
+
+# sync-rules
+
+Analyze a project's codebase and generate topic-based rule files in `.claude/rules/`.
+
+## Checklist
+
+You MUST create a task for each of these items and complete them in order:
+
+1. **Analyze project** — scan files, read configs, detect patterns
+2. **Determine paths patterns** — derive glob patterns from actual directory structure
+3. **Check existing rules** — detect new/update/sync mode
+4. **Present generation plan** — show file list with paths to user for approval
+5. **Write rule files** — generate approved files to `.claude/rules/`
+
+## Step 1: Analyze Project
+
+Read `references/analysis-guide.md` first to load analysis criteria.
+
+Then scan the project in this order:
+
+### 1-1. File Structure Scan
+
+Use the Glob tool to search for:
+
+- Source files: `**/*.{ts,tsx,js,jsx,go,py,rs,java,rb,swift,kt,cs,php}`
+- Test files: `**/*.test.*`, `**/*.spec.*`, `**/*_test.*`, `**/test_*`, `**/tests/**`, `**/test/**`, `**/__tests__/**`, `**/spec/**`
+- Config files: `.eslintrc*`, `eslint.config.*`, `.prettierrc*`, `prettier.config.*`, `biome.json`, `biome.jsonc`, `tsconfig.json`, `.editorconfig`, `go.mod`, `Cargo.toml`, `pyproject.toml`, `requirements.txt`, `Gemfile`, `pom.xml`, `build.gradle`, `.golangci.yml`, `.rubocop.yml`, `rustfmt.toml`
+- CI/CD: `.github/workflows/*`, `.gitlab-ci.yml`, `.circleci/config.yml`, `Jenkinsfile`
+- Docs: `CONTRIBUTING.md`, `Makefile`
+
+If source files exceed 500, sample up to 3 files per directory instead of reading all.
+
+### 1-2. Read Config Files
+
+Read detected config files with the Read tool:
+- Linter/formatter settings
+- package.json dependencies/devDependencies/scripts/workspaces
+- go.mod module path and dependencies
+- Other package manager configs
+
+### 1-3. Detect Code Patterns
+
+Use Grep and Read on representative source files (2-3 per directory) to detect:
+- Naming conventions (camelCase, snake_case, PascalCase usage)
+- Error handling patterns
+- Import ordering and style
+- Function length and nesting depth tendencies
+
+### 1-4. Summarize Analysis
+
+Organize results into:
+- **Detected languages and frameworks**
+- **Architecture pattern** (if applicable)
+- **Existing linter/formatter settings**
+- **Test patterns**
+- **API layer presence**
+- **CI/CD presence**
+- **Paths pattern map** (determined in 1-5)
+
+## Step 2: Determine Paths Patterns
+
+Derive `paths:` glob patterns for each rule file from the Glob results in Step 1-1. Patterns MUST be based on the project's actual directory structure — never use hardcoded values.
+
+### Procedure
+
+1. **Identify source directories**: Find top-level directories where source files concentrate (e.g., `src/`, `app/`, `lib/`, `internal/`, `pkg/`). This becomes the base for source globs.
+2. **Identify test patterns**: Check test file placement — colocated (`src/**/*.test.ts`), separated (`tests/**/*`), or both.
+3. **Identify API directories**: Find directories containing API-related files (`src/api/`, `routes/`, `handlers/`, `controllers/`, etc.).
+4. **Identify CI/CD files**: List CI/CD file paths.
+
+### Pattern Construction Rules
+
+- List multiple patterns on separate lines when multiple directories exist
+- Only include test patterns actually used in the project (don't add `*.test.*` AND `*_test.*` if only one is used)
+- Use `**/*.{ext}` when source files are scattered at root level
+- Treat extensions with different purposes separately:
+  - `.ts` and `.tsx` are different. `.tsx` = React components (UI layer), `.ts` = non-UI logic
+  - `.js` and `.jsx` likewise
+  - Do NOT include UI extensions (`.tsx`, `.jsx`) in API/service layer rules
+  - Use brace expansion `*.{ts,tsx}` only when the same rule applies to both
+
+### Examples
+
+TypeScript + React project (`src/` directory):
+```yaml
+# testing.md — tests can be .ts or .tsx
+paths:
+  - "src/**/*.test.{ts,tsx}"
+  - "src/**/*.spec.{ts,tsx}"
+
+# error-handling.md, debugging.md — all source files
+paths:
+  - "src/**/*.{ts,tsx}"
+
+# architecture.md — all source files
+paths:
+  - "src/**/*.{ts,tsx}"
+
+# security.md — non-UI layer only
+paths:
+  - "src/**/*.ts"
+
+# api-design.md — API layer only, .ts only (no .tsx)
+paths:
+  - "src/api/**/*.ts"
+  - "src/routes/**/*.ts"
+
+# workflows.md
+paths:
+  - ".github/**"
+  - "Dockerfile"
+```
+
+Go project (`internal/`, `cmd/`, `pkg/` layout):
+```yaml
+# testing.md
+paths:
+  - "**/*_test.go"
+
+# security.md, error-handling.md, debugging.md, architecture.md
+paths:
+  - "internal/**/*.go"
+  - "pkg/**/*.go"
+  - "cmd/**/*.go"
+
+# api-design.md
+paths:
+  - "internal/handler/**/*.go"
+  - "internal/api/**/*.go"
+```
+
+Python + FastAPI project:
+```yaml
+# testing.md
+paths:
+  - "tests/**/*.py"
+
+# security.md, error-handling.md, debugging.md, architecture.md
+paths:
+  - "app/**/*.py"
+  - "src/**/*.py"
+
+# api-design.md
+paths:
+  - "app/api/**/*.py"
+  - "app/routes/**/*.py"
+```
+
+## Step 3: Check Existing Rules
+
+Search for `.claude/rules/**/*.md` with Glob.
+
+### No existing rules → New mode
+
+Proceed to Step 4.
+
+### Existing rules found → Update mode
+
+1. Read all existing rule files
+2. Check each file for the metadata comment `<!-- generated-by: sync-rules@... -->`:
+   - No metadata comment → user-created file. Preserve content, do not overwrite
+   - Major version differs from current → propose backup to `.claude/rules/.backup/`
+   - Same major version → normal update processing
+3. Compare analysis results with existing rules and classify changes:
+   - **Add**: new rules/sections based on newly detected patterns
+   - **Update**: existing rules conflicting with changed settings
+   - **Remove proposal**: rules no longer needed (e.g., migrated to linter)
+
+Proceed to Step 4.
+
+## Step 4: Present Generation Plan
+
+Present the list of files to generate (or update) to the user.
+
+### Candidate Files
+
+| File | Condition | Paths |
+|------|-----------|-------|
+| `code-style.md` | Always | **None** (always loaded, max 200 lines) |
+| `testing.md` | Test files exist | Test file patterns from Step 2 |
+| `security.md` | Web/API project detected | Source directories + extensions from Step 2 |
+| `api-design.md` | API layer detected | API directories + extensions from Step 2 |
+| `error-handling.md` | Source files exist | Source directories + extensions from Step 2 |
+| `debugging.md` | Logging library or observability tools detected | Source directories + extensions from Step 2 |
+| `architecture.md` | Architecture pattern clearly detected | Source directories + extensions from Step 2 |
+| `workflows.md` | CI/CD config detected | CI/CD file paths from Step 2 |
+
+**Paths scope principles**:
+- Only `code-style.md` has no paths (always loaded)
+- All other files MUST have `paths:` frontmatter derived from Step 2
+- Patterns are derived from actual project structure, never hardcoded
+
+### Presentation Format
+
+New mode:
+```
+## Rule Generation Plan
+
+Based on analysis, the following rule files will be generated:
+
+1. **code-style.md** (paths: none) — {summary}
+2. **testing.md** (paths: `src/**/*.test.{ts,tsx}`) — {summary}
+3. **error-handling.md** (paths: `src/**/*.{ts,tsx}`) — {summary}
+4. ...
+
+Proceed? Let me know if you want to skip any files or adjust paths.
+```
+
+Update mode:
+```
+## Rule Update Plan
+
+### Add
+- **security.md** — {reason}
+
+### Update
+- **code-style.md** — {change summary}
+
+### Remove proposal
+- **{filename}** — {reason}
+
+Apply these changes?
+```
+
+Wait for user confirmation. Adjust the plan based on feedback.
+
+## Step 5: Write Rule Files
+
+Read `references/rule-format.md` to load format definitions.
+
+### New Mode
+
+Write approved files to `.claude/rules/` using the Write tool.
+
+Each file MUST follow these rules:
+- Add metadata comment at file start: `<!-- generated-by: sync-rules@1.0.0, last-synced: {today's date} -->`
+- Add `paths:` frontmatter for all files except `code-style.md`. `code-style.md` gets no frontmatter
+- Wrap auto-generated sections with `<!-- sync-rules:begin:{ID} -->` / `<!-- sync-rules:end:{ID} -->`
+- Max 200 lines per file
+- One topic per file
+- Do not duplicate rules managed by existing linter/formatter. State "Defer to {tool name}" instead
+- Include Good/Bad code examples using detected language idioms
+- Add a one-line rationale for each rule
+
+### Update Mode
+
+- Only update sections wrapped in `<!-- sync-rules:begin:{ID} -->` / `<!-- sync-rules:end:{ID} -->` markers using the Edit tool
+- Preserve user-added sections outside markers
+- Insert new sections before the unmarked user content area
+
+### Monorepo
+
+- Generate path-scoped rules per subdirectory
+- Prefix filenames (e.g., `frontend-code-style.md`, `backend-code-style.md`)
+- Place shared rules in separate files without `paths`
+
+## Constraints
+
+- Do NOT execute shell scripts or shell commands for analysis. Use only Glob/Grep/Read tools
+- Max 200 lines per rule file. Split into subtopics if exceeded
+- Do NOT generate rules that conflict with existing linter/formatter settings
+- Use `paths` frontmatter aggressively to limit rule scope
+- Do NOT generate rules without evidence from the codebase. Base rules on actual project patterns, not generic advice
+- Do NOT write files without user confirmation
+- For languages not in the extension mapping (Elixir, Haskell, Dart, etc.), generate generic rules from file structure and config files. Omit language-specific idiom examples
+- When naming conventions are mixed (e.g., camelCase and snake_case coexist), adopt the majority pattern and note the mixture in the rule
