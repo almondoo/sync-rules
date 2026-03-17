@@ -19,7 +19,7 @@ Add the marketplace and install the plugin:
 
 ```
 /plugin marketplace add almondoo/sync-rules
-/plugin install sync-rules@sync-rules-marketplace
+/plugin install sync-rules@sync-rules-skill
 ```
 
 ## Usage
