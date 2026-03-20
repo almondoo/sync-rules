@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.2] - 2026-03-20
+
+### Added
+- Step 2 (Check CLAUDE.md) to detect contradictions and overlap with CLAUDE.md
+- Per-rule-type path scoping guidelines for narrower rule file scope
+- Rule Accuracy Guidelines (analysis-guide Section 7) to prevent overgeneralized rules
+- Data File Detection (analysis-guide Section 8) for JSON/YAML/TOML data file rules
+- Directory-level detection guidance for logging, security, and error-handling path scoping
+- `data-files.md` as a candidate rule file
+- CLAUDE.md test fixture with intentional contradiction and overlap
+
 ## [1.0.1] - 2026-03-20
 
 ### Added

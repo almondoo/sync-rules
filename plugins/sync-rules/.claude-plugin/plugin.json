@@ -1,6 +1,6 @@
 {
   "name": "sync-rules",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Analyze project codebase and auto-generate .claude/rules/ for coding conventions, naming, testing, error handling, and architecture",
   "author": {
     "name": "Tsubasa"
