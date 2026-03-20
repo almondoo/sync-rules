@@ -12,38 +12,38 @@ assert_eq() {
   local label="$1" expected="$2" actual="$3"
   if [[ "$expected" == "$actual" ]]; then
     echo "  PASS: $label"
-    ((PASS++))
+    PASS=$((PASS + 1))
   else
     echo "  FAIL: $label"
     echo "    expected: $expected"
     echo "    actual:   $actual"
-    ((FAIL++))
+    FAIL=$((FAIL + 1))
   fi
 }
 
 assert_contains() {
   local label="$1" needle="$2" haystack="$3"
-  if echo "$haystack" | grep -q "$needle"; then
+  if echo "$haystack" | grep -Fq "$needle"; then
     echo "  PASS: $label"
-    ((PASS++))
+    PASS=$((PASS + 1))
   else
     echo "  FAIL: $label"
     echo "    expected to contain: $needle"
     echo "    actual: $haystack"
-    ((FAIL++))
+    FAIL=$((FAIL + 1))
   fi
 }
 
 assert_not_contains() {
   local label="$1" needle="$2" haystack="$3"
-  if ! echo "$haystack" | grep -q "$needle"; then
+  if ! echo "$haystack" | grep -Fq "$needle"; then
     echo "  PASS: $label"
-    ((PASS++))
+    PASS=$((PASS + 1))
   else
     echo "  FAIL: $label"
     echo "    expected NOT to contain: $needle"
     echo "    actual: $haystack"
-    ((FAIL++))
+    FAIL=$((FAIL + 1))
   fi
 }
 
@@ -140,20 +140,20 @@ assert_contains "json flag config" "package.json" "$OUT"
 echo "=== Error handling: empty stdin ==="
 if echo -n "" | python3 "$SCRIPT" 2>/dev/null; then
   echo "  FAIL: should exit non-zero on empty stdin"
-  ((FAIL++))
+  FAIL=$((FAIL + 1))
 else
   echo "  PASS: exits non-zero on empty stdin"
-  ((PASS++))
+  PASS=$((PASS + 1))
 fi
 
 # --- Error: invalid JSON ---
 echo "=== Error handling: invalid JSON ==="
 if python3 "$SCRIPT" --json 'not-json' 2>/dev/null; then
   echo "  FAIL: should exit non-zero on invalid JSON"
-  ((FAIL++))
+  FAIL=$((FAIL + 1))
 else
   echo "  PASS: exits non-zero on invalid JSON"
-  ((PASS++))
+  PASS=$((PASS + 1))
 fi
 
 # --- Summary ---
