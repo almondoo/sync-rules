@@ -8,6 +8,8 @@
 - [4. Test Pattern Classification](#4-test-pattern-classification) — file patterns, framework detection
 - [5. API Layer / Web Project Detection](#5-api-layer--web-project-detection) — route handlers, directories, dependencies
 - [6. Debugging / Logging Detection](#6-debugging--logging-detection) — logging libraries, observability tools
+- [7. Rule Accuracy Guidelines](#7-rule-accuracy-guidelines) — universal vs common vs conditional patterns
+- [8. Data File Detection](#8-data-file-detection) — structured data file identification
 
 ## Analysis Procedure
 
@@ -132,8 +134,9 @@ Return a structured summary including:
 - **Directory structure observations** from file path examination (notable patterns, layering, organization)
 - **Linter/formatter tools** and deferral rules from Section 3
 - **Test framework** and patterns from Section 4
-- **API layer presence** and directories from Section 5
-- **Logging/observability** detected per Section 6
+- **API layer presence**, directories, and auth/security directories from Section 5
+- **Error handling directories** (error boundaries, global handlers) from Section 5
+- **Logging/observability** detected per Section 6, with directories where logging is actively used
 - **Source code observations** from representative files read (import ordering, naming style, error patterns, comment style)
 - **Naming/error handling patterns** from Grep (if gaps existed)
 
@@ -266,6 +269,14 @@ Classify as Web/API project if any of the following match (triggers `security.md
 ### Dependency Packages
 - HTTP frameworks (Web-related entries from the framework detection table above)
 
+### Auth / Security Directory Detection
+
+When API/web project is detected, identify directories containing authentication, authorization, or input validation code. Grep for auth-related imports and middleware patterns (e.g., `auth`, `jwt`, `session`, `middleware`, `guard`, `permission`). These directories will be used for scoping `security.md` paths.
+
+### Error Handling Directory Detection
+
+Identify directories containing error boundary components (React: `ErrorBoundary`), global error handlers (root layout files, middleware error handlers), or custom error type definitions. These directories will be used for scoping `error-handling.md` paths.
+
 ## 6. Debugging / Logging Detection
 
 Classify as needing `debugging.md` if any of the following match:
@@ -286,4 +297,49 @@ Classify as needing `debugging.md` if any of the following match:
 - `console.log(`, `console.error(`, `console.warn(`
 - `logger.info(`, `logger.error(`, `logger.debug(`
 - `log.Printf(`, `log.Println(`, `slog.Info(`
+
+### Directory-Level Detection
+
+When logging/observability is detected, identify which directories actively use it. Grep for logging library imports (e.g., `import.*logger`, `import.*slog`, `from.*logging`) and note the parent directories of matching files. These directories will be used for scoping `debugging.md` paths.
+
+## 7. Rule Accuracy Guidelines
+
+When documenting patterns observed during analysis, classify each pattern by its coverage:
+
+- **Universal rule** — applies to ALL instances in the codebase. Only report a pattern as universal if every relevant file follows it. Example: "All source files use arrow functions" (verified across all `.ts` files).
+
+- **Common pattern** — applies to MOST instances with exceptions. Use qualifying language: "typically", "in most cases", "by convention". List known exceptions when identifiable. Example: "Most route directories include a `constants.tsx` file (exceptions: `version-detail/`, `hands-on/`)".
+
+- **Conditional rule** — applies only when certain conditions are met. State the condition explicitly. Example: "Routes with CRUD operations include a `detail-modal.tsx`".
+
+### Anti-pattern
+
+Observing a pattern in 3–4 files and stating it as a universal rule for the entire codebase. Before reporting a pattern as universal, check the ratio of files that follow vs. deviate. If even one exception exists, classify it as a common pattern or conditional rule instead.
+
+## 8. Data File Detection
+
+Detect structured data files that are project content (not configuration).
+
+### Target Extensions
+
+`*.json`, `*.yaml`, `*.yml`, `*.toml`, `*.csv`
+
+### Exclusion List (config files — NOT data files)
+
+These are configuration files and must be excluded from data file counts:
+`package.json`, `tsconfig.json`, `tsconfig.*.json`, `.prettierrc`, `.prettierrc.json`, `.eslintrc.json`, `eslint.config.*`, `biome.json`, `biome.jsonc`, `go.mod`, `go.sum`, `Cargo.toml`, `Cargo.lock`, `pyproject.toml`, `requirements.txt`, `Gemfile`, `Gemfile.lock`, `pom.xml`, `build.gradle`, `build.gradle.kts`, `settings.gradle.kts`, `.editorconfig`, `.golangci.yml`, `.golangci.yaml`, `.rubocop.yml`, `rustfmt.toml`, `.rustfmt.toml`, `composer.json`, `composer.lock`
+
+### Detection Criteria
+
+Classify a project as having data files when:
+1. A dedicated data directory exists (`data/`, `content/`, `seeds/`, or similar — exclude `fixtures/` which is typically test data)
+2. The directory contains 2+ non-config data files
+
+### Analysis Points
+
+When data files are detected, note:
+- Naming conventions (kebab-case, camelCase, numbered prefixes, etc.)
+- Structural patterns (consistent schema across files, nested objects, flat arrays)
+- Content language (Japanese, English, mixed)
+- Approximate file sizes
 

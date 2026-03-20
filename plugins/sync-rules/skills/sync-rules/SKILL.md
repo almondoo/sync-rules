@@ -23,12 +23,13 @@ Analyze a project's codebase and generate topic-based rule files in `.claude/rul
 You MUST create a task for each of these items and complete them in order:
 
 - [ ] Step 1: Analyze project (scan files, read configs, detect patterns)
-- [ ] Step 2: Determine path patterns (derive glob patterns)
-- [ ] Step 3: Detect mode (new vs update)
-- [ ] Step 4: Present plan (wait for user confirmation)
-- [ ] Step 5: Review plan (subagent review loop until approved)
-- [ ] Step 6: Write rule files
-- [ ] Step 7: Validate generated files
+- [ ] Step 2: Check CLAUDE.md (detect contradictions and overlap)
+- [ ] Step 3: Determine path patterns (derive glob patterns)
+- [ ] Step 4: Detect mode (new vs update)
+- [ ] Step 5: Present plan (wait for user confirmation)
+- [ ] Step 6: Review plan (subagent review loop until approved)
+- [ ] Step 7: Write rule files
+- [ ] Step 8: Validate generated files
 
 ## Step 1: Analyze Project
 
@@ -75,7 +76,34 @@ Regardless of strategy, the final analysis summary contains:
 
 Use this summary as input for all subsequent steps.
 
-## Step 2: Determine Paths Patterns
+## Step 2: Check CLAUDE.md
+
+Read `.claude/CLAUDE.md` using the Read tool. If the file does not exist, skip this step and proceed to Step 3.
+
+### Contradiction Detection
+
+Cross-reference CLAUDE.md statements against Step 1 analysis results. Look for:
+- Claims about tools/frameworks that contradict detected config files (e.g., CLAUDE.md says "no test framework" but vitest is in devDependencies)
+- Architecture descriptions that don't match detected directory patterns
+- Technology stack claims that conflict with detected dependencies
+
+### Overlap Detection
+
+Identify CLAUDE.md content that falls into rule file categories:
+- Coding style rules (naming, formatting, imports) → overlaps with `code-style-{lang}.md`
+- Architecture descriptions (layers, data flow, component structure) → overlaps with `architecture.md`
+- Test conventions → overlaps with `testing.md`
+- Error handling patterns → overlaps with `error-handling.md`
+
+### Output
+
+Store findings as a structured list of:
+- **Contradictions**: each with CLAUDE.md statement, conflicting evidence, and recommended action
+- **Overlaps**: each with CLAUDE.md section, overlapping rule category, and recommended action
+
+These findings are presented to the user in Step 5 (Present Generation Plan).
+
+## Step 3: Determine Path Patterns
 
 Derive `paths:` glob patterns for each rule file from the analysis summary returned in Step 1 (`source_dirs`, `test_dirs`, `test_patterns`, `extensions`). Patterns MUST be based on the project's actual directory structure — never use hardcoded values.
 
@@ -111,32 +139,55 @@ Derive `paths:` glob patterns for each rule file from the analysis summary retur
   - Do NOT include UI extensions (`.tsx`, `.jsx`) in API/service layer rules
   - Use brace expansion `*.{ts,tsx}` only when the same rule applies to both
 
+### Per-Rule-Type Scoping
+
+Not all rules apply to the entire source tree. Use the analysis results to scope paths by rule type:
+
+| Rule file | Scope policy | How to determine directories |
+|---|---|---|
+| `code-style-{lang}.md` | All source files | All source directories from analysis |
+| `testing.md` | Test files only | Test file patterns from analysis |
+| `architecture.md` | Architecture-boundary directories | Directories containing route definitions, component hierarchies, or layer entry points |
+| `error-handling.md` | Error boundary / handler directories | Directories containing error boundary components, global error handlers, or middleware error handling |
+| `api-design.md` | API layer only | Directories containing route handlers or API endpoints |
+| `debugging.md` | Directories where logging is actively used | Directories identified by logging library imports in analysis |
+| `security.md` | API/middleware/auth directories | Directories containing authentication, authorization, or input validation code |
+| `data-files.md` | Data files only | Dedicated data directories containing non-config data files |
+
+When the analysis doesn't identify specific directories for a rule type, fall back to the broader source directory pattern.
+
 ### Examples
 
 TypeScript + React project (`src/` directory):
 ```yaml
+# code-style-typescript.md — all source
+paths: ["src/**/*.{ts,tsx}"]
+
 # testing.md — tests can be .ts or .tsx
 paths: ["src/**/*.test.{ts,tsx}", "src/**/*.spec.{ts,tsx}"]
+
+# architecture.md — architecture-boundary directories only
+paths: ["src/routes/**/*.tsx", "src/components/**/*.tsx"]
+
+# error-handling.md — error boundary locations only
+paths: ["src/routes/**/*.tsx", "src/root.tsx"]
 
 # security.md — non-UI layer only (exclude .tsx)
 paths: ["src/**/*.ts"]
 
 # api-design.md — API layer only
 paths: ["src/api/**/*.ts", "src/routes/**/*.ts"]
-
-# error-handling.md, debugging.md, architecture.md — all source
-paths: ["src/**/*.{ts,tsx}"]
 ```
 
 Go project: use `**/*_test.go` for tests, `internal/**/*.go` + `pkg/**/*.go` + `cmd/**/*.go` for source, `internal/handler/**/*.go` for API.
 
-## Step 3: Check Existing Rules
+## Step 4: Check Existing Rules
 
 Search for `.claude/rules/**/*.md` with Glob.
 
 ### No existing rules → New mode
 
-Proceed to Step 4.
+Proceed to Step 5.
 
 ### Existing rules found → Update mode
 
@@ -149,9 +200,9 @@ Proceed to Step 4.
    - **Update**: existing rules conflicting with changed settings
    - **Remove proposal**: rules no longer needed (e.g., migrated to linter)
 
-Proceed to Step 4.
+Proceed to Step 5.
 
-## Step 4: Present Generation Plan
+## Step 5: Present Generation Plan
 
 Present the list of files to generate (or update) to the user.
 
@@ -159,16 +210,17 @@ Present the list of files to generate (or update) to the user.
 
 | File | Condition | Paths |
 |------|-----------|-------|
-| `code-style-{language}.md` | Source files exist for that language | Extension patterns from Step 2 (max 200 lines) |
-| `testing.md` | Test files exist | Test file patterns from Step 2 |
-| `security.md` | Web/API project detected | Source directories + extensions from Step 2 |
-| `api-design.md` | API layer detected | API directories + extensions from Step 2 |
-| `error-handling.md` | Source files exist | Source directories + extensions from Step 2 |
-| `debugging.md` | Logging library or observability tools detected | Source directories + extensions from Step 2 |
-| `architecture.md` | Architecture pattern clearly detected | Source directories + extensions from Step 2 |
+| `code-style-{language}.md` | Source files exist for that language | Extension patterns from Step 3 (max 200 lines) |
+| `testing.md` | Test files exist | Test file patterns from Step 3 |
+| `security.md` | Web/API project detected | Source directories + extensions from Step 3 |
+| `api-design.md` | API layer detected | API directories + extensions from Step 3 |
+| `error-handling.md` | Source files exist | Source directories + extensions from Step 3 |
+| `debugging.md` | Logging library or observability tools detected | Source directories + extensions from Step 3 |
+| `architecture.md` | Architecture pattern clearly detected | Source directories + extensions from Step 3 |
+| `data-files.md` | Data files detected in dedicated data directories (see analysis-guide Section 8) | Data directory patterns from Step 3 |
 
 **Paths scope principles**:
-- All rule files MUST have `paths:` frontmatter derived from Step 2
+- All rule files MUST have `paths:` frontmatter derived from Step 3
 - Patterns are derived from actual project structure, never hardcoded
 
 ### Presentation Format
@@ -177,7 +229,25 @@ Present the plan as a numbered list with filename, glob paths, and one-line summ
 For update mode, group changes by Add / Update / Remove.
 Wait for user confirmation before proceeding.
 
-## Step 5: Review Plan
+### CLAUDE.md Warnings
+
+If Step 2 found contradictions or overlaps, include a "CLAUDE.md Warnings" section in the plan presentation:
+
+**Contradictions detected:**
+- CLAUDE.md states "{statement}" but {evidence from analysis}
+  → Recommended: {action}
+
+**Overlap detected:**
+- {CLAUDE.md section description} overlaps with candidate {rule file}
+  → Recommended: keep details in rules, keep summary in CLAUDE.md
+
+Present warnings alongside the file list. The user decides how to proceed:
+- Update CLAUDE.md to resolve contradictions
+- Accept overlap (generate rules with duplicate content)
+- Adjust rule generation to avoid overlap
+- Any combination of the above
+
+## Step 6: Review Plan
 
 Spawn a review subagent to verify the generation plan and analysis results before writing any files. This catches issues early — before they become rule files that need fixing.
 
@@ -189,7 +259,7 @@ Use the Agent tool (subagent_type: `code-reviewer`):
 3. UI extensions (`.tsx`, `.jsx`) are excluded from non-UI rule files (`security.md`, `api-design.md`)
 4. Test patterns in `testing.md` match only the naming conventions actually used in the project (not both `*.test.*` and `*_test.*` when only one exists)
 5. Rules that should defer to a linter/formatter are planned to defer (cross-check config files with Section 3 of analysis-guide.md)
-6. `code-style-{language}.md` filenames use the correct language suffix from Step 2's extension mapping (e.g., `kotlin` not `kt`)
+6. `code-style-{language}.md` filenames use the correct language suffix from Step 3's extension mapping (e.g., `kotlin` not `kt`)
 7. No planned file is likely to exceed the 200-line limit; if so, a split plan exists
 8. No planned rules lack evidence in the analysis summary
 9. No contradictions between planned rule files
@@ -199,7 +269,7 @@ Report issues as a list with planned file name and what is wrong. If no issues f
 
 ### Review Loop
 
-1. If the subagent returns **APPROVE** → proceed to Step 6
+1. If the subagent returns **APPROVE** → proceed to Step 7
 2. If the subagent returns **issues** →
    a. Adjust the plan (modify paths, add/remove files, update deferral rules)
    b. Present the revised plan to the user for confirmation
@@ -207,7 +277,7 @@ Report issues as a list with planned file name and what is wrong. If no issues f
    d. Repeat until APPROVE or 3 iterations reached
 3. If 3 iterations pass without APPROVE → report remaining issues to the user for guidance
 
-## Step 6: Write Rule Files
+## Step 7: Write Rule Files
 
 Read `references/rule-format.md` to load format definitions. Follow all format rules defined there.
 
@@ -226,7 +296,7 @@ Write approved files to `.claude/rules/` using the Write tool.
 - Generate per-language files (`code-style-{language}.md`) with `paths:` scoped to the subdirectory (e.g., `paths: ["backend/**/*.go"]`). No filename prefixing
 - Place shared rules in separate files with `paths:` covering all relevant directories
 
-## Step 7: Validate Generated Files
+## Step 8: Validate Generated Files
 
 Run the validation script on all generated or updated rule files:
 

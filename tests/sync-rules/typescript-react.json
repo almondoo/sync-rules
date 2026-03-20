@@ -12,7 +12,8 @@
     "src/api/users.ts",
     "src/hooks/useAuth.ts",
     "src/__tests__/App.test.tsx",
-    "src/api/__tests__/users.test.ts"
+    "src/api/__tests__/users.test.ts",
+    ".claude/CLAUDE.md"
   ],
   "expected_classification": {
     "source_files": ["src/App.tsx", "src/components/Button.tsx", "src/api/users.ts", "src/hooks/useAuth.ts"],
@@ -47,6 +48,9 @@
     "Generates api-design.md with paths scoped to API directories only (src/api/**/*.ts), excluding .tsx",
     "Presents generation plan to user and waits for confirmation before writing any files",
     "All generated files include correct frontmatter (where applicable), metadata comment, and section markers",
-    "Runs validate_rules.py on generated files and all pass"
+    "Runs validate_rules.py on generated files and all pass",
+    "Reads .claude/CLAUDE.md and detects contradiction: 'No test framework' vs vitest in devDependencies",
+    "Detects overlap: coding style rules in CLAUDE.md overlap with code-style-typescript.md candidate",
+    "Presents CLAUDE.md Warnings section in generation plan before user confirmation"
   ]
 }
