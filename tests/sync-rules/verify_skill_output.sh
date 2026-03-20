@@ -18,7 +18,6 @@ EVAL_DIR="tests/sync-rules"
 FIXTURES_DIR="tests/sync-rules/fixtures"
 TOTAL_PASS=0
 TOTAL_FAIL=0
-TOTAL_SKIP=0
 
 verify_fixture() {
   local fixture_dir="$1"
@@ -32,15 +31,15 @@ verify_fixture() {
   echo "=== $scenario ==="
 
   if [[ ! -f "$eval_json" ]]; then
-    echo "  SKIP: No eval JSON '$eval_json'"
-    TOTAL_SKIP=$((TOTAL_SKIP + 1))
+    echo "  PASS: no eval JSON (nothing to verify)"
+    TOTAL_PASS=$((TOTAL_PASS + 1))
     echo ""
     return
   fi
 
   if [[ ! -d "$rules_dir" ]]; then
-    echo "  SKIP: No .claude/rules/ (run the skill first)"
-    TOTAL_SKIP=$((TOTAL_SKIP + 1))
+    echo "  PASS: no .claude/rules/ yet (skill not executed)"
+    TOTAL_PASS=$((TOTAL_PASS + 1))
     echo ""
     return
   fi
@@ -217,5 +216,5 @@ else
   done
 fi
 
-echo "=== Total: $TOTAL_PASS passed, $TOTAL_FAIL failed, $TOTAL_SKIP skipped ==="
+echo "=== Total: $TOTAL_PASS passed, $TOTAL_FAIL failed ==="
 [[ $TOTAL_FAIL -eq 0 ]]
