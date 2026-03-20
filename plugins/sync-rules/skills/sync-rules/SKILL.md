@@ -5,7 +5,15 @@ description: >
   naming rules, test strategy, error handling, and architecture rules.
   Use when the user asks to generate rules, create coding conventions, set up project rules,
   sync existing rules, or organize .claude/rules files.
+  Also triggered when working with a new project setup, when rules may be outdated,
+  or when the user asks about coding standards for their project.
 ---
+
+## Resources
+- **Analysis criteria**: [references/analysis-guide.md](references/analysis-guide.md)
+- **Rule format spec**: [references/rule-format.md](references/rule-format.md)
+- **File counter (large projects only)**: `python3 scripts/count_files.py` (execute)
+- **Rule validator**: `python3 scripts/validate_rules.py` (execute)
 
 # sync-rules
 
@@ -15,113 +23,60 @@ Analyze a project's codebase and generate topic-based rule files in `.claude/rul
 
 You MUST create a task for each of these items and complete them in order:
 
-1. **Analyze project** — scan files, read configs, detect patterns
-2. **Determine paths patterns** — derive glob patterns from actual directory structure
-3. **Check existing rules** — detect new/update/sync mode
-4. **Present generation plan** — show file list with paths to user for approval
-5. **Write rule files** — generate approved files to `.claude/rules/`
-6. **Validate generated files** — run validation script and fix errors
+- [ ] Step 1: Analyze project (scan files, read configs, detect patterns)
+- [ ] Step 2: Determine path patterns (derive glob patterns)
+- [ ] Step 3: Detect mode (new vs update)
+- [ ] Step 4: Present plan (wait for user confirmation)
+- [ ] Step 5: Review plan (subagent review loop until approved)
+- [ ] Step 6: Write rule files
+- [ ] Step 7: Validate generated files
 
 ## Step 1: Analyze Project
 
-Read `references/analysis-guide.md` first to load analysis criteria.
+Spawn an exploration subagent to perform the full analysis. This keeps raw Glob results, config file contents, and Grep output out of your main context.
 
-Analysis uses a tiered approach: structure scan → compress → config read → targeted grep. Glob results never enter your context directly — they are compressed by a bundled script into a fixed-size JSON summary (~200 tokens), keeping token usage constant regardless of project size.
+Use the Agent tool (subagent_type: `Explore`, thoroughness: `very thorough`):
 
-### 1-1. File Structure Scan
+**Prompt**: Read `references/analysis-guide.md` and follow the Analysis Procedure section. Execute all steps: parallel Glob scans, file classification (source/test/config), structure analysis, file path examination, config file reading, representative source file reading, and language-specific gap detection with Grep. For large projects (500+ source files), use `python3 scripts/count_files.py` for directory/extension counting. Return the complete analysis summary as described in the Output Format subsection.
 
-Run these Glob calls **in parallel** (a single message with multiple tool calls):
+The subagent returns a structured summary containing:
+- **File classification**: source/test/config file counts, extension counts, test patterns, config files list
+- **Source directories**: top directories by file count with representative files read
+- **Languages and frameworks** detected from config files
+- **Architecture pattern** (or "undetermined" if no clear match)
+- **Directory structure observations** from direct file path examination
+- **Linter/formatter tools** and which rules to defer
+- **Test framework** and patterns
+- **API layer** presence and directories
+- **Source code observations** from representative files (import ordering, naming, error patterns, comment style)
+- **Naming/error patterns** from Grep (if config gaps existed)
 
-- Source files: `**/*.{ts,tsx,js,jsx,go,py,rs,java,rb,swift,kt,kts,cs,php}`
-- Test files: `**/*.test.*`, `**/*.spec.*`, `**/*_test.*`, `**/test_*`, `**/tests/**`, `**/test/**`, `**/__tests__/**`, `**/spec/**`
-- Config files: `package.json`, `tsconfig.json`, `go.mod`, `Cargo.toml`, `pyproject.toml`, `requirements.txt`, `Gemfile`, `pom.xml`, `build.gradle`, `build.gradle.kts`, `settings.gradle.kts`, `.eslintrc*`, `eslint.config.*`, `.prettierrc*`, `prettier.config.*`, `biome.json`, `biome.jsonc`, `.editorconfig`, `.golangci.yml`, `.golangci.yaml`, `.rubocop.yml`, `rustfmt.toml`, `.rustfmt.toml`
-  <!-- Keep config list in sync with CONFIG_PATTERNS/CONFIG_PREFIXES in scripts/summarize_structure.py -->
-
-**Do NOT read or interpret the Glob results yourself.** Pass them to the compression script in the next step.
-
-### 1-2. Compress Glob Results
-
-Combine all file paths from Step 1-1 into a single newline-separated list and pipe to the bundled script.
-
-Example (if Glob returned `src/app.ts`, `src/app.test.ts`, `package.json`):
-
-```bash
-printf '%s\n' 'src/app.ts' 'src/app.test.ts' 'package.json' | python3 scripts/summarize_structure.py
-```
-
-For large result sets, the `--json` flag is also available:
-
-```bash
-python3 scripts/summarize_structure.py --json '["src/app.ts", "src/app.test.ts", "package.json"]'
-```
-
-The script outputs a JSON summary:
-```json
-{
-  "source_dirs": ["src/components", "src/api", "src/hooks"],
-  "test_dirs": ["tests"],
-  "test_patterns": ["*.test.ts", "*.test.tsx"],
-  "extensions": {".ts": 42, ".tsx": 15},
-  "config_files": ["package.json", "tsconfig.json", ".prettierrc"],
-  "total_source_files": 57,
-  "total_test_files": 12
-}
-```
-
-This summary is your primary data source for all subsequent steps. It provides:
-- `source_dirs` → paths patterns for rule files (Step 2)
-- `test_dirs` / `test_patterns` → testing.md paths
-- `extensions` → language detection and extension-based scoping
-- `config_files` → which config files to read next
-- `total_source_files` → project size classification
-
-### 1-3. Read Config Files
-
-Read **only** the files listed in `config_files` from the JSON summary. Run reads **in parallel** where possible.
-
-Config files alone determine:
-- Languages and frameworks (from dependency lists)
-- Linter/formatter tools to defer to
-- Test framework (from devDependencies or config sections)
-- API framework presence (from dependencies)
-
-After this phase, check what is still **unknown**. Typically, config files cannot tell you:
-- Naming conventions (camelCase vs snake_case)
-- Error handling patterns (custom error types, wrapping style)
-
-### 1-4. Targeted Gap Detection (only when config leaves gaps)
-
-**Skip this phase entirely** if the project has comprehensive linter config (e.g., ESLint with naming-convention rule, or ruff with N rules) that already defines the conventions you would detect.
-
-When gaps remain, use **Grep with `head_limit`** instead of reading full files:
-
-| Gap | Grep pattern | `head_limit` | Rationale |
-|-----|-------------|-------------|-----------|
-| Naming conventions | `function |const |def |func ` | 10 | Need enough samples to detect majority pattern |
-| Error handling | `catch|if err != nil|raise |throw ` | 10 | Multiple error styles may coexist |
-| API route detection | `app.get|router.get|@app.get|r.GET` | 5 | Presence/absence is sufficient; routes are uniform |
-| Logging detection | `slog\.|logger\.|logging\.|console\.log` | 5 | Presence/absence is sufficient |
-
-Grep `head_limit` caps results — even on a 10,000-file project, you get at most N matching lines per pattern.
-
-### 1-5. Summarize Analysis
-
-Organize results into:
-- **Detected languages and frameworks**
-- **Architecture pattern** (from `source_dirs` in JSON summary, matched against `references/analysis-guide.md` Section 2)
-- **Existing linter/formatter settings**
-- **Test patterns** (from `test_patterns` in JSON summary)
-- **API layer presence**
+Use this summary as input for all subsequent steps.
 
 ## Step 2: Determine Paths Patterns
 
-Derive `paths:` glob patterns for each rule file from the JSON summary produced in Step 1-2 (`source_dirs`, `test_dirs`, `test_patterns`, `extensions`). Patterns MUST be based on the project's actual directory structure — never use hardcoded values.
+Derive `paths:` glob patterns for each rule file from the analysis summary returned in Step 1 (`source_dirs`, `test_dirs`, `test_patterns`, `extensions`). Patterns MUST be based on the project's actual directory structure — never use hardcoded values.
 
 ### Procedure
 
 1. **Identify source directories**: Find top-level directories where source files concentrate (e.g., `src/`, `app/`, `lib/`, `internal/`, `pkg/`). This becomes the base for source globs.
 2. **Identify test patterns**: Check test file placement — colocated (`src/**/*.test.ts`), separated (`tests/**/*`), or both.
 3. **Identify API directories**: Find directories containing API-related files (`src/api/`, `routes/`, `handlers/`, `controllers/`, etc.).
+4. **Map extensions to languages**: Use this mapping to determine the language suffix for `code-style-{language}.md` files:
+
+| Extensions | Language suffix |
+|---|---|
+| `.ts`, `.tsx` | `typescript` |
+| `.js`, `.jsx` | `javascript` |
+| `.go` | `go` |
+| `.py` | `python` |
+| `.rs` | `rust` |
+| `.java` | `java` |
+| `.rb` | `ruby` |
+| `.swift` | `swift` |
+| `.kt`, `.kts` | `kotlin` |
+| `.cs` | `csharp` |
+| `.php` | `php` |
 
 ### Pattern Construction Rules
 
@@ -139,45 +94,19 @@ Derive `paths:` glob patterns for each rule file from the JSON summary produced 
 TypeScript + React project (`src/` directory):
 ```yaml
 # testing.md — tests can be .ts or .tsx
-paths:
-  - "src/**/*.test.{ts,tsx}"
-  - "src/**/*.spec.{ts,tsx}"
+paths: ["src/**/*.test.{ts,tsx}", "src/**/*.spec.{ts,tsx}"]
 
-# error-handling.md, debugging.md — all source files
-paths:
-  - "src/**/*.{ts,tsx}"
+# security.md — non-UI layer only (exclude .tsx)
+paths: ["src/**/*.ts"]
 
-# architecture.md — all source files
-paths:
-  - "src/**/*.{ts,tsx}"
+# api-design.md — API layer only
+paths: ["src/api/**/*.ts", "src/routes/**/*.ts"]
 
-# security.md — non-UI layer only
-paths:
-  - "src/**/*.ts"
-
-# api-design.md — API layer only, .ts only (no .tsx)
-paths:
-  - "src/api/**/*.ts"
-  - "src/routes/**/*.ts"
+# error-handling.md, debugging.md, architecture.md — all source
+paths: ["src/**/*.{ts,tsx}"]
 ```
 
-Go project (`internal/`, `cmd/`, `pkg/` layout):
-```yaml
-# testing.md
-paths:
-  - "**/*_test.go"
-
-# security.md, error-handling.md, debugging.md, architecture.md
-paths:
-  - "internal/**/*.go"
-  - "pkg/**/*.go"
-  - "cmd/**/*.go"
-
-# api-design.md
-paths:
-  - "internal/handler/**/*.go"
-  - "internal/api/**/*.go"
-```
+Go project: use `**/*_test.go` for tests, `internal/**/*.go` + `pkg/**/*.go` + `cmd/**/*.go` for source, `internal/handler/**/*.go` for API.
 
 ## Step 3: Check Existing Rules
 
@@ -208,7 +137,7 @@ Present the list of files to generate (or update) to the user.
 
 | File | Condition | Paths |
 |------|-----------|-------|
-| `code-style.md` | Always | **None** (always loaded, max 200 lines) |
+| `code-style-{language}.md` | Source files exist for that language | Extension patterns from Step 2 (max 200 lines) |
 | `testing.md` | Test files exist | Test file patterns from Step 2 |
 | `security.md` | Web/API project detected | Source directories + extensions from Step 2 |
 | `api-design.md` | API layer detected | API directories + extensions from Step 2 |
@@ -217,57 +146,46 @@ Present the list of files to generate (or update) to the user.
 | `architecture.md` | Architecture pattern clearly detected | Source directories + extensions from Step 2 |
 
 **Paths scope principles**:
-- Only `code-style.md` has no paths (always loaded)
-- All other files MUST have `paths:` frontmatter derived from Step 2
+- All rule files MUST have `paths:` frontmatter derived from Step 2
 - Patterns are derived from actual project structure, never hardcoded
 
 ### Presentation Format
 
-New mode:
-```
-## Rule Generation Plan
+Present the plan as a numbered list with filename, glob paths, and one-line summary per file.
+For update mode, group changes by Add / Update / Remove.
+Wait for user confirmation before proceeding.
 
-Based on analysis, the following rule files will be generated:
+## Step 5: Review Plan
 
-1. **code-style.md** (paths: none) — {summary}
-2. **testing.md** (paths: `src/**/*.test.{ts,tsx}`) — {summary}
-3. **error-handling.md** (paths: `src/**/*.{ts,tsx}`) — {summary}
-4. ...
+Spawn a review subagent to verify the generation plan and analysis results before writing any files. This catches issues early — before they become rule files that need fixing.
 
-Proceed? Let me know if you want to skip any files or adjust paths.
-```
+Use the Agent tool (subagent_type: `code-reviewer`):
 
-Update mode:
-```
-## Rule Update Plan
+**Prompt**: Review the rule generation plan and analysis summary. For each planned rule file, verify:
+1. The file's inclusion condition is met (e.g., testing.md requires test files to exist)
+2. `paths:` patterns correctly scope to the intended directories (check against the analysis summary's `source_dirs`)
+3. Rules that should defer to a linter/formatter are planned to defer (cross-check config files with Section 3 of analysis-guide.md)
+4. No planned rules lack evidence in the analysis summary
+5. No contradictions between planned rule files
+Report issues as a list with planned file name and what is wrong. If no issues found, respond with APPROVE.
 
-### Add
-- **security.md** — {reason}
+### Review Loop
 
-### Update
-- **code-style.md** — {change summary}
+1. If the subagent returns **APPROVE** → proceed to Step 6
+2. If the subagent returns **issues** →
+   a. Adjust the plan (modify paths, add/remove files, update deferral rules)
+   b. Present the revised plan to the user for confirmation
+   c. Spawn the review subagent again with the same prompt
+   d. Repeat until APPROVE or 3 iterations reached
+3. If 3 iterations pass without APPROVE → report remaining issues to the user for guidance
 
-### Remove proposal
-- **{filename}** — {reason}
-
-Apply these changes?
-```
-
-Wait for user confirmation. Adjust the plan based on feedback.
-
-## Step 5: Write Rule Files
+## Step 6: Write Rule Files
 
 Read `references/rule-format.md` to load format definitions. Follow all format rules defined there.
 
 ### New Mode
 
 Write approved files to `.claude/rules/` using the Write tool.
-
-Additional constraints for generation:
-- One topic per file
-- Do not duplicate rules managed by existing linter/formatter. State "Defer to {tool name}" instead
-- Include Good/Bad code examples using detected language idioms
-- Add a one-line rationale for each rule
 
 ### Update Mode
 
@@ -277,11 +195,10 @@ Additional constraints for generation:
 
 ### Monorepo
 
-- Generate path-scoped rules per subdirectory
-- Prefix filenames (e.g., `frontend-code-style.md`, `backend-code-style.md`)
-- Place shared rules in separate files without `paths`
+- Generate per-language files (`code-style-{language}.md`) with `paths:` scoped to the subdirectory (e.g., `paths: ["backend/**/*.go"]`). No filename prefixing
+- Place shared rules in separate files with `paths:` covering all relevant directories
 
-## Step 6: Validate Generated Files
+## Step 7: Validate Generated Files
 
 Run the validation script on all generated or updated rule files:
 
@@ -299,8 +216,7 @@ If validation fails:
 
 ## Constraints
 
-- Use Glob/Grep/Read tools for analysis. The only permitted shell command is running bundled scripts in `scripts/` for data processing (e.g., `python3 scripts/summarize_structure.py`). Do NOT run arbitrary shell commands or install external tools
-- Max 200 lines per rule file. Split into subtopics if exceeded
+- Use Glob/Grep/Read tools for analysis. The only permitted shell commands are running bundled scripts in `scripts/` (e.g., `python3 scripts/count_files.py` for large projects, `python3 scripts/validate_rules.py`). Do NOT run arbitrary shell commands or install external tools
 - Do NOT generate rules that conflict with existing linter/formatter settings
 - Use `paths` frontmatter aggressively to limit rule scope
 - Do NOT generate rules without evidence from the codebase. Base rules on actual project patterns, not generic advice
@@ -310,7 +226,7 @@ If validation fails:
 
 ## Error Recovery
 
-- **Compression script returns empty/error output**: Verify that Glob results are non-empty. If no source files match the extension list, report to the user that no analyzable source files were found
+- **No source files found**: Verify that Glob results are non-empty. If no source files match the extension list, report to the user that no analyzable source files were found
 - **All Glob calls return zero results**: The project may use an unsupported language or unconventional structure. Ask the user for guidance on which files to analyze
 - **Config files listed in summary are unreadable**: Skip unreadable files and note the gap in the analysis summary. Do not fail the entire workflow
 - **User rejects the entire generation plan**: Ask what adjustments they want. Do not proceed without at least partial approval

@@ -6,9 +6,9 @@ This document defines the format for rule files generated in `.claude/rules/`.
 
 Claude Code only recognizes `paths:` in `.claude/rules` frontmatter. All other metadata goes in HTML comments.
 
-### Paths Scope (only when needed)
+### Paths Scope
 
-Add `paths:` frontmatter only for rules scoped to specific files. Rules that apply to all files (only `code-style.md`) get NO frontmatter.
+All generated rule files MUST have `paths:` frontmatter. Patterns are derived from the project's actual directory structure in Step 2.
 
 ```yaml
 ---
@@ -20,7 +20,7 @@ paths:
 
 ### Metadata Comment
 
-All generated rule files MUST include the following HTML comment **after** the frontmatter block (or at the very top for files without frontmatter like `code-style.md`):
+All generated rule files MUST include the following HTML comment **after** the frontmatter block:
 
 ```markdown
 <!-- generated-by: sync-rules, last-synced: YYYY-MM-DD -->
@@ -90,5 +90,5 @@ paths:
 ### File Size Limit
 - Max 200 lines per file
 - Split into subtopics when exceeded
-  - Example: `code-style.md` → `code-style-imports.md` + `code-style-naming.md`
+  - Example: `code-style-typescript.md` → `code-style-typescript-imports.md` + `code-style-typescript-naming.md`
 - Each split file gets its own frontmatter

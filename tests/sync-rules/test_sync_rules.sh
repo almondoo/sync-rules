@@ -3,14 +3,14 @@
 # Run from repo root: bash tests/sync-rules/test_sync_rules.sh
 #
 # Sections:
-#   1. summarize_structure.py unit tests (26)
+#   1. count_files.py unit tests (15)
 #   2. validate_rules.py unit tests (16)
 #   3. Eval scenario integration smoke tests (3)
 #   4. Fixture output verification (go-update-mode only, others when available)
 
 set -euo pipefail
 
-SUMMARIZE="plugins/sync-rules/skills/sync-rules/scripts/summarize_structure.py"
+COUNT="plugins/sync-rules/skills/sync-rules/scripts/count_files.py"
 VALIDATE="plugins/sync-rules/skills/sync-rules/scripts/validate_rules.py"
 EVAL_DIR="tests/sync-rules"
 FIXTURES_DIR="tests/sync-rules/fixtures"
@@ -56,71 +56,58 @@ assert_not_contains() {
 }
 
 # ============================================================
-# 1. summarize_structure.py — unit tests (26)
+# 1. count_files.py — unit tests (15)
 # ============================================================
 
-echo "==== summarize_structure.py ===="
+echo "==== count_files.py ===="
 
-echo "--- Mixed file types ---"
-OUT=$(printf '%s\n' 'src/app.ts' 'src/app.test.ts' 'package.json' 'tsconfig.json' | python3 "$SUMMARIZE")
-assert_eq "total_source_files" "1" "$(echo "$OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['total_source_files'])")"
-assert_eq "total_test_files" "1" "$(echo "$OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['total_test_files'])")"
-assert_contains "config has package.json" "package.json" "$OUT"
-assert_contains "config has tsconfig.json" "tsconfig.json" "$OUT"
-assert_contains "extensions has .ts" '".ts"' "$OUT"
-
-echo "--- Config detection ---"
-OUT=$(printf '%s\n' 'package.json' '.eslintrc.js' '.prettierrc.yaml' '.golangci.yml' 'eslint.config.mjs' 'biome.json' | python3 "$SUMMARIZE")
-assert_eq "configs not counted as source" "0" "$(echo "$OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['total_source_files'])")"
-assert_contains "detects package.json" "package.json" "$OUT"
-assert_contains "detects .eslintrc.js" ".eslintrc.js" "$OUT"
-assert_contains "detects biome.json" "biome.json" "$OUT"
-
-echo "--- Test file detection ---"
-OUT=$(printf '%s\n' 'src/app.test.ts' 'src/user.spec.tsx' 'internal/handler_test.go' 'tests/test_main.py' '__tests__/App.test.tsx' | python3 "$SUMMARIZE")
-assert_eq "total_test_files" "5" "$(echo "$OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['total_test_files'])")"
-assert_eq "total_source_files" "0" "$(echo "$OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['total_source_files'])")"
-assert_contains "pattern *.test.ts" "*.test.ts" "$OUT"
-assert_contains "pattern *.spec.tsx" "*.spec.tsx" "$OUT"
-assert_contains "pattern *_test.go" "*_test.go" "$OUT"
-assert_contains "pattern test_*.py" "test_*.py" "$OUT"
-
-echo "--- Source dir depth-2 truncation ---"
-OUT=$(printf '%s\n' 'src/components/Button/index.tsx' 'src/api/users.ts' 'main.go' | python3 "$SUMMARIZE")
-assert_contains "src/components grouped" '"src/components"' "$OUT"
-assert_contains "src/api grouped" '"src/api"' "$OUT"
-assert_contains "root file as dot" '"."' "$OUT"
-
-echo "--- Unsupported extensions ignored ---"
-OUT=$(printf '%s\n' 'README.md' 'Dockerfile' 'src/app.ts' | python3 "$SUMMARIZE")
-assert_eq "only 1 source file" "1" "$(echo "$OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['total_source_files'])")"
-assert_not_contains "no .md extension" '".md"' "$OUT"
+echo "--- Basic counting ---"
+OUT=$(printf '%s\n' 'src/app.ts' 'src/utils.ts' 'lib/helper.go' 'package.json' | python3 "$COUNT")
+assert_eq "total" "4" "$(echo "$OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['total'])")"
+assert_eq "src count" "2" "$(echo "$OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['dirs']['src'])")"
+assert_eq "lib count" "1" "$(echo "$OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['dirs']['lib'])")"
+assert_eq "root count" "1" "$(echo "$OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['dirs']['.'])")"
 
 echo "--- Extension counting ---"
-OUT=$(printf '%s\n' 'src/a.ts' 'src/b.ts' 'src/c.tsx' | python3 "$SUMMARIZE")
+OUT=$(printf '%s\n' 'src/a.ts' 'src/b.ts' 'src/c.tsx' 'lib/d.go' | python3 "$COUNT")
 assert_eq ".ts count" "2" "$(echo "$OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['extensions']['.ts'])")"
 assert_eq ".tsx count" "1" "$(echo "$OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['extensions']['.tsx'])")"
+assert_eq ".go count" "1" "$(echo "$OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['extensions']['.go'])")"
+
+echo "--- Deep directory grouping ---"
+OUT=$(printf '%s\n' 'src/api/v2/handlers/internal/user.ts' | python3 "$COUNT")
+assert_contains "depth 4 truncation" '"src/api/v2/handlers"' "$OUT"
+
+OUT=$(printf '%s\n' 'src/api/v2/handlers/internal/user.ts' | python3 "$COUNT" --depth 2)
+assert_contains "depth 2 truncation" '"src/api"' "$OUT"
+
+OUT=$(printf '%s\n' 'src/api/v2/handlers/internal/user.ts' | python3 "$COUNT" --depth 0)
+assert_contains "depth 0 (no limit)" '"src/api/v2/handlers/internal"' "$OUT"
 
 echo "--- --json flag ---"
-OUT=$(python3 "$SUMMARIZE" --json '["src/app.ts", "package.json"]')
-assert_eq "json flag source count" "1" "$(echo "$OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['total_source_files'])")"
-assert_contains "json flag config" "package.json" "$OUT"
+OUT=$(python3 "$COUNT" --json '["src/app.ts", "lib/util.go"]')
+assert_eq "json flag total" "2" "$(echo "$OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['total'])")"
 
 echo "--- Error handling ---"
-if echo -n "" | python3 "$SUMMARIZE" 2>/dev/null; then
+if echo -n "" | python3 "$COUNT" 2>/dev/null; then
   echo "  FAIL: should exit non-zero on empty stdin"
   FAIL=$((FAIL + 1))
 else
   echo "  PASS: exits non-zero on empty stdin"
   PASS=$((PASS + 1))
 fi
-if python3 "$SUMMARIZE" --json 'not-json' 2>/dev/null; then
+if python3 "$COUNT" --json 'not-json' 2>/dev/null; then
   echo "  FAIL: should exit non-zero on invalid JSON"
   FAIL=$((FAIL + 1))
 else
   echo "  PASS: exits non-zero on invalid JSON"
   PASS=$((PASS + 1))
 fi
+
+echo "--- Output has all required keys ---"
+OUT=$(printf '%s\n' 'src/app.ts' | python3 "$COUNT")
+KEYS=$(echo "$OUT" | python3 -c "import sys,json; print(sorted(json.load(sys.stdin).keys()))")
+assert_eq "output keys" "['dirs', 'extensions', 'total']" "$KEYS"
 
 # ============================================================
 # 2. validate_rules.py — unit tests (16)
@@ -184,7 +171,12 @@ RULE
 }
 
 write_valid_code_style() {
-  cat > "$VTMP/code-style.md" << 'RULE'
+  cat > "$VTMP/code-style-go.md" << 'RULE'
+---
+paths:
+  - "internal/**/*.go"
+  - "pkg/**/*.go"
+---
 <!-- generated-by: sync-rules, last-synced: 2026-03-20 -->
 
 # Code Style
@@ -193,7 +185,7 @@ write_valid_code_style() {
 ## Naming Conventions
 
 - **Rule**: Use camelCase for variables and functions
-  - Rationale: Project convention
+  - Rationale: Go convention
 
 <!-- sync-rules:end:naming -->
 RULE
@@ -205,11 +197,11 @@ v_assert_pass "valid scoped rule file"
 v_teardown
 
 v_setup; write_valid_code_style
-v_assert_pass "valid code-style.md (no frontmatter)"
+v_assert_pass "valid code-style-go.md (with frontmatter)"
 v_teardown
 
 v_setup; write_valid_code_style; write_valid_scoped "testing.md"; write_valid_scoped "error-handling.md"
-v_assert_pass "multiple valid files"
+v_assert_pass "multiple valid files (including code-style-go.md)"
 v_teardown
 
 echo "--- Line count ---"
@@ -232,22 +224,18 @@ cat > "$VTMP/testing.md" << 'RULE'
 ## Basics
 <!-- sync-rules:end:basics -->
 RULE
-v_assert_fail "missing frontmatter on non-code-style" "Missing paths: frontmatter"
+v_assert_fail "missing frontmatter" "Missing paths: frontmatter"
 v_teardown
 
 v_setup
-cat > "$VTMP/code-style.md" << 'RULE'
----
-paths:
-  - "src/**/*.ts"
----
+cat > "$VTMP/code-style-go.md" << 'RULE'
 <!-- generated-by: sync-rules, last-synced: 2026-03-20 -->
 # Code Style
 <!-- sync-rules:begin:naming -->
 ## Naming
 <!-- sync-rules:end:naming -->
 RULE
-v_assert_fail "code-style.md with frontmatter" "code-style.md must not have frontmatter"
+v_assert_fail "code-style-go.md without frontmatter" "Missing paths: frontmatter"
 v_teardown
 
 v_setup
@@ -388,19 +376,19 @@ v_teardown
 
 # ============================================================
 # 3. Eval scenario — integration smoke tests (3)
-#    Verifies summarize produces valid JSON with correct keys
+#    Verifies count_files produces valid JSON with correct keys
 #    for realistic file lists. Manual checklists collected.
 # ============================================================
 
 echo ""
 echo "==== Eval scenarios ===="
 
-EXPECTED_KEYS='["source_dirs","test_dirs","test_patterns","extensions","config_files","total_source_files","total_test_files"]'
+EXPECTED_KEYS='["dirs","extensions","total"]'
 
 for eval_file in "$EVAL_DIR"/*.json; do
   [[ -f "$eval_file" ]] || continue
 
-  # Skip files without both "files" and "assertions"
+  # Skip files without "files" field
   has_files=$(python3 -c "import json; d=json.load(open('$eval_file')); print('yes' if 'files' in d else 'no')")
   [[ "$has_files" == "yes" ]] || continue
 
@@ -409,8 +397,8 @@ for eval_file in "$EVAL_DIR"/*.json; do
 
   echo "--- $name ---"
 
-  # Smoke test: summarize runs and returns valid JSON with all keys
-  if OUT=$(python3 "$SUMMARIZE" --json "$files_json" 2>/dev/null) \
+  # Smoke test: count_files runs and returns valid JSON with all keys
+  if OUT=$(python3 "$COUNT" --json "$files_json" 2>/dev/null) \
      && echo "$OUT" | python3 -c "
 import sys, json
 out = json.load(sys.stdin)

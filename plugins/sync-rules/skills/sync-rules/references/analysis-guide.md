@@ -1,12 +1,156 @@
 # Project Analysis Guide
 
 ## Contents
+- [Analysis Procedure](#analysis-procedure) — step-by-step exploration procedure for subagent
 - [1. Language Detection](#1-language-detection) — extension mapping, framework detection, monorepo detection
 - [2. Architecture Pattern Detection](#2-architecture-pattern-detection) — directory-based inference
 - [3. Linter / Formatter Compatibility](#3-linter--formatter-compatibility-checklist) — tool deferral rules
 - [4. Test Pattern Classification](#4-test-pattern-classification) — file patterns, framework detection
 - [5. API Layer / Web Project Detection](#5-api-layer--web-project-detection) — route handlers, directories, dependencies
 - [6. Debugging / Logging Detection](#6-debugging--logging-detection) — logging libraries, observability tools
+
+## Analysis Procedure
+
+This section defines the step-by-step procedure for analyzing a project. This procedure runs inside a subagent, so token efficiency is secondary to analysis accuracy. Follow these steps in order.
+
+### File Structure Scan
+
+Run these Glob calls **in parallel** (a single message with multiple tool calls):
+
+- Source files: `**/*.{ts,tsx,js,jsx,go,py,rs,java,rb,swift,kt,kts,cs,php}`
+- Config files: `package.json`, `tsconfig.json`, `go.mod`, `Cargo.toml`, `pyproject.toml`, `requirements.txt`, `Gemfile`, `pom.xml`, `build.gradle`, `build.gradle.kts`, `settings.gradle.kts`, `.eslintrc*`, `eslint.config.*`, `.prettierrc*`, `prettier.config.*`, `biome.json`, `biome.jsonc`, `.editorconfig`, `.golangci.yml`, `.golangci.yaml`, `.rubocop.yml`, `rustfmt.toml`, `.rustfmt.toml`
+
+### Classify Files
+
+From the Glob results, classify each file path into one of three categories:
+
+**Config files** — files matching known config names or prefixes:
+- Exact names: `package.json`, `tsconfig.json`, `go.mod`, `Cargo.toml`, `pyproject.toml`, `requirements.txt`, `Gemfile`, `pom.xml`, `build.gradle`, `build.gradle.kts`, `settings.gradle.kts`, `.editorconfig`, `biome.json`, `biome.jsonc`, `.rustfmt.toml`
+- Name prefixes: `.eslintrc`, `.prettierrc`, `.golangci.`, `.rubocop.`, `rustfmt.`, `eslint.config.`, `prettier.config.`
+
+**Test files** — files matching test naming conventions. Classify by **file name pattern**, not just by parent directory:
+- `*.test.*`, `*.spec.*` (e.g., `user.test.ts`, `app.spec.tsx`)
+- `*_test.*` (e.g., `user_test.go`, `handler_test.rs`)
+- `test_*.*` (e.g., `test_user.py`)
+
+Use directory context to disambiguate edge cases. For example, `tests/fixtures/app/main.go` is a fixture file, not a test. Files in `__tests__/` or `spec/` directories that match naming patterns above are tests; other files in those directories are test helpers.
+
+**Source files** — all remaining files with recognized source extensions (see Section 1 Extension Mapping).
+
+### Analyze Structure
+
+From the classified files, build a structural summary:
+
+1. **Count files by directory**: Group source files by parent directory and note file counts per directory. Identify the top 3 directories by file count — these are the most important areas of the project.
+
+2. **Count files by extension**: Tally extensions across all source files. This determines the project's primary languages.
+
+3. **Identify test patterns**: Note which test naming conventions the project uses (e.g., `*.test.ts`, `*_test.go`). Check test file placement — colocated with source (`src/**/*.test.ts`), separated (`tests/**/*`), or both.
+
+4. **List config files**: Collect all detected config file paths.
+
+**For large projects (500+ source files)**, use the counting script instead of manual counting:
+
+```bash
+printf '%s\n' <source file paths> | python3 scripts/count_files.py
+```
+
+The script outputs directory and extension counts:
+```json
+{
+  "dirs": {"src/api": 15, "src/components/ui": 8, "src/hooks": 5},
+  "extensions": {".ts": 42, ".tsx": 15},
+  "total": 57
+}
+```
+
+### Examine File Paths
+
+Scan the raw Glob results directly to detect architectural signals. Report any directory structure patterns that reveal the project's organizational intent — layering, feature grouping, infrastructure abstraction, API versioning, test colocation strategy, etc.
+
+Do not limit observations to a fixed checklist. The goal is to capture any structural pattern that would inform rule generation.
+
+### Read Config Files
+
+Read the detected config files. Run reads **in parallel** where possible.
+
+Config files determine:
+- Languages and frameworks (from dependency lists)
+- Linter/formatter tools to defer to (see Section 3 below)
+- Test framework (from devDependencies or config sections, see Section 4)
+- API framework presence (from dependencies, see Section 5)
+
+After this phase, check what is still **unknown**. Typically, config files cannot tell you:
+- Naming conventions (camelCase vs snake_case)
+- Error handling patterns (custom error types, wrapping style)
+- Import ordering conventions
+- Comment and documentation style
+
+### Read Representative Source Files
+
+From the top 3 source directories by file count, select one representative file each. Prefer files with specific, descriptive names that are likely to contain substantive implementation patterns. Avoid files with generic names like `index`, `mod`, `main`, `types`, `constants`, `config`, `utils`, `helpers`, `init`, or `setup` — these typically contain boilerplate rather than project-specific patterns.
+
+Examine each file for concrete coding patterns: import ordering, naming conventions, error handling style, comment style, function structure, and file organization. Report what you observe — these direct observations produce more specific and accurate rules than Grep alone.
+
+### Targeted Gap Detection
+
+**Skip this phase entirely** if the project has comprehensive linter config (e.g., ESLint with naming-convention rule, or ruff with N rules) that already defines the conventions you would detect.
+
+When gaps remain after reading config and source files, run **language-specific** Grep queries using the patterns below. Filter by file extension (use the `glob` parameter) to avoid cross-language noise (e.g., mixing Go `func` with Python `def`).
+
+#### Naming Convention Patterns
+
+| Extension(s) | Grep pattern | `head_limit` |
+|---|---|---|
+| `.ts` | `function \|const \|class \|interface \|type ` | 30 |
+| `.tsx` | `function \|const \|class ` | 30 |
+| `.js`, `.jsx` | `function \|const \|class ` | 30 |
+| `.go` | `func \|type \|var ` | 30 |
+| `.py` | `def \|class ` | 30 |
+| `.rs` | `fn \|struct \|enum \|trait \|impl ` | 30 |
+| `.java` | `public \|private \|protected \|class \|interface ` | 30 |
+| `.rb` | `def \|class \|module ` | 30 |
+| `.swift` | `func \|class \|struct \|enum \|protocol ` | 30 |
+| `.kt`, `.kts` | `fun \|class \|interface \|object \|val \|var ` | 30 |
+| `.cs` | `public \|private \|class \|interface \|struct ` | 30 |
+| `.php` | `function \|class \|interface \|trait ` | 30 |
+
+#### Error Handling Patterns
+
+| Extension(s) | Grep pattern | `head_limit` |
+|---|---|---|
+| `.ts`, `.tsx`, `.js`, `.jsx` | `catch \(\|catch\(\|throw new \|\.catch\(` | 30 |
+| `.go` | `if err != nil\|errors\.New\|fmt\.Errorf\|errors\.Wrap` | 30 |
+| `.py` | `except \|raise \|try:` | 30 |
+| `.rs` | `\.unwrap\(\|\.expect\(\|\?;\|Err\(` | 30 |
+| `.java` | `catch \(\|throw new \|throws ` | 30 |
+| `.rb` | `rescue \|raise \|begin$` | 30 |
+| `.swift` | `catch \|throw \|try \|guard ` | 30 |
+| `.kt`, `.kts` | `catch \(\|throw \|try \{` | 30 |
+| `.cs` | `catch \(\|throw new \|throw;` | 30 |
+| `.php` | `catch \(\|throw new ` | 30 |
+
+#### API and Logging Detection
+
+| Gap | Grep pattern | `head_limit` |
+|-----|-------------|-------------|
+| API route detection | `app.get\|router.get\|@app.get\|r.GET` | 20 |
+| Logging detection | `slog\.\|logger\.\|logging\.\|console\.log` | 20 |
+
+### Output Format
+
+Return a structured summary including:
+- **File classification**: source file count, test file count, config files list, extension counts, test patterns detected
+- **Source directories**: top directories by file count with representative files read
+- **Languages and frameworks** detected from config files (see Section 1)
+- **Architecture pattern** matched against Section 2 (or "undetermined" if no clear match)
+- **Directory structure observations** from file path examination (notable patterns, layering, organization)
+- **Linter/formatter tools** and deferral rules from Section 3
+- **Test framework** and patterns from Section 4
+- **API layer presence** and directories from Section 5
+- **Logging/observability** detected per Section 6
+- **Source code observations** from representative files read (import ordering, naming style, error patterns, comment style)
+- **Naming/error handling patterns** from Grep (if gaps existed)
 
 ## 1. Language Detection
 

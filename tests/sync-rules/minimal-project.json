@@ -6,28 +6,25 @@
   "files": [
     "main.py"
   ],
-  "assertions": {
-    "total_source_files": 1,
-    "total_test_files": 0,
-    "extensions_contains": { ".py": 1 },
+  "expected_classification": {
+    "source_files": ["main.py"],
+    "test_files": [],
     "config_files": [],
-    "test_patterns": [],
-    "test_dirs": [],
-    "source_dirs_contains": ["."]
+    "test_patterns": []
   },
   "verify": {
-    "required_files": ["code-style.md"],
+    "required_files": ["code-style-python.md"],
     "forbidden_files": ["testing.md", "api-design.md", "security.md", "debugging.md"],
     "file_checks": {
-      "code-style.md": {
-        "has_frontmatter": false
+      "code-style-python.md": {
+        "has_frontmatter": true
       }
     }
   },
   "expected_behavior": [
     "Handles minimal project without errors or crashes",
-    "Compression script produces valid JSON summary with minimal data",
-    "Generates only code-style.md (always generated) and possibly error-handling.md",
+    "Classifies main.py as source file (not test, not config)",
+    "Generates code-style-python.md (per-language code style) and possibly error-handling.md",
     "Does NOT generate testing.md (no test files detected)",
     "Does NOT generate api-design.md (no API/web project detected)",
     "Does NOT generate architecture.md (no clear architecture pattern)",

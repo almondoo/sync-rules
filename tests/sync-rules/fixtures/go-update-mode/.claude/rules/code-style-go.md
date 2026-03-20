@@ -1,3 +1,9 @@
+---
+paths:
+  - "internal/**/*.go"
+  - "pkg/**/*.go"
+  - "cmd/**/*.go"
+---
 <!-- generated-by: sync-rules, last-synced: 2026-01-15 -->
 
 # Code Style

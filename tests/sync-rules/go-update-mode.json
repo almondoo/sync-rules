@@ -11,38 +11,37 @@
     "internal/service/auth.go",
     "pkg/middleware/logging.go",
     "cmd/server/main.go",
-    ".claude/rules/code-style.md",
+    ".claude/rules/code-style-go.md",
     ".claude/rules/error-handling.md"
   ],
   "preconditions": {
-    ".claude/rules/code-style.md": "Must contain '<!-- generated-by: sync-rules' metadata comment and sync-rules markers",
+    ".claude/rules/code-style-go.md": "Must contain '<!-- generated-by: sync-rules' metadata comment and sync-rules markers",
     ".claude/rules/error-handling.md": "Must NOT contain sync-rules metadata (user-created file)"
   },
-  "assertions": {
-    "total_source_files": 4,
-    "total_test_files": 1,
-    "extensions_contains": { ".go": 5 },
-    "config_files_contains": [".golangci.yml", "go.mod"],
-    "test_patterns_contains": ["*_test.go"],
-    "source_dirs_contains": ["cmd/server", "internal/handler", "internal/service", "pkg/middleware"],
-    "test_dirs_contains": ["internal/handler"]
+  "expected_classification": {
+    "source_files": ["cmd/server/main.go", "internal/handler/user.go", "internal/service/auth.go", "pkg/middleware/logging.go"],
+    "test_files": ["internal/handler/user_test.go"],
+    "config_files": [".golangci.yml", "go.mod"],
+    "test_patterns": ["*_test.go"]
   },
   "verify": {
-    "required_files": ["code-style.md"],
+    "required_files": ["code-style-go.md"],
+    "forbidden_files": ["code-style.md"],
     "preserve_files": {
       "error-handling.md": "User-created file must not be overwritten with sync-rules metadata"
     },
     "file_checks": {
-      "code-style.md": {
+      "code-style-go.md": {
+        "has_frontmatter": true,
         "content_contains": ["Defer to golangci-lint"]
       }
     }
   },
   "expected_behavior": [
     "Detects existing .claude/rules/*.md files and enters update mode",
-    "Identifies code-style.md as auto-generated (has metadata comment) and error-handling.md as user-created",
+    "Identifies code-style-go.md as auto-generated (has metadata comment) and error-handling.md as user-created",
     "Does NOT overwrite or modify user-created error-handling.md",
-    "Updates only sync-rules marker sections in code-style.md, preserving user content outside markers",
+    "Updates only sync-rules marker sections in code-style-go.md, preserving user content outside markers",
     "Defers Go static analysis rules to golangci-lint",
     "Detects Go Standard Layout architecture from internal/pkg/cmd directories",
     "Classifies changes as Add/Update/Remove and presents update plan",

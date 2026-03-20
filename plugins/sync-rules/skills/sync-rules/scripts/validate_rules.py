@@ -6,7 +6,7 @@ Usage:
     python3 validate_rules.py .claude/rules/
 
 Checks:
-- Frontmatter YAML syntax (paths: field present if expected)
+- Frontmatter YAML syntax (paths: field required on all files)
 - Metadata comment presence (generated-by: sync-rules)
 - Section marker pairs (every begin has a matching end)
 - Section ID uniqueness within each file
@@ -49,13 +49,9 @@ def validate_file(filepath):
         elif "paths:" not in content[4:end_idx]:
             errors.append("Frontmatter present but missing 'paths:' field")
 
-    if filename == "code-style.md" and has_frontmatter:
+    if not has_frontmatter:
         errors.append(
-            "code-style.md must not have frontmatter (applies to all files)"
-        )
-    elif filename != "code-style.md" and not has_frontmatter:
-        errors.append(
-            "Missing paths: frontmatter (required for all files except code-style.md)"
+            "Missing paths: frontmatter (required for all rule files)"
         )
 
     # 3. Metadata comment
@@ -114,7 +110,44 @@ def validate_file(filepath):
     return errors
 
 
+def check_content_quality(filepath):
+    """Check for content quality issues (reported as warnings, not errors)."""
+    warnings = []
+    with open(filepath, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Empty sections
+    for m in BEGIN_RE.finditer(content):
+        sid = m.group(1)
+        end_pattern = f"<!-- sync-rules:end:{sid} -->"
+        end_pos = content.find(end_pattern, m.end())
+        if end_pos != -1:
+            section_content = content[m.end():end_pos].strip()
+            if not section_content:
+                warnings.append(f"Empty section: {sid}")
+
+    # Sections without code examples
+    sections = list(BEGIN_RE.finditer(content))
+    for i, m in enumerate(sections):
+        sid = m.group(1)
+        end_pattern = f"<!-- sync-rules:end:{sid} -->"
+        end_pos = content.find(end_pattern, m.end())
+        if end_pos != -1:
+            section_text = content[m.end():end_pos]
+            if "```" not in section_text:
+                warnings.append(f"Section '{sid}' has no code examples")
+
+    return warnings
+
+
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
+        print("Usage: python3 validate_rules.py <rules_directory>")
+        print("  Validates generated rule files in .claude/rules/.")
+        print("  Checks frontmatter, metadata comments, section markers,")
+        print("  line count limits, and code fence closure.")
+        sys.exit(0)
+
     if len(sys.argv) < 2:
         print(
             "Usage: python3 validate_rules.py <rules_directory>",
@@ -137,6 +170,8 @@ def main():
         filepath = os.path.join(rules_dir, filename)
         errors = validate_file(filepath)
 
+        warnings = check_content_quality(filepath)
+
         if errors:
             all_passed = False
             print(f"FAIL: {filename}")
@@ -144,6 +179,9 @@ def main():
                 print(f"  - {err}")
         else:
             print(f"  OK: {filename}")
+
+        for warn in warnings:
+            print(f"  WARN: {warn}")
 
     print()
     if all_passed:
