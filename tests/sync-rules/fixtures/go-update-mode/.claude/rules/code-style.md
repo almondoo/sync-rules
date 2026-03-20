@@ -10,6 +10,13 @@
 
 <!-- sync-rules:end:naming -->
 
+<!-- sync-rules:begin:linter -->
+## Linter
+
+- Static analysis — Defer to golangci-lint
+
+<!-- sync-rules:end:linter -->
+
 ## User Notes
 
 These are my custom notes about the project style.
