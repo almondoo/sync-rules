@@ -16,7 +16,7 @@ import os
 import sys
 from collections import Counter
 
-# Config file patterns to detect
+# Keep in sync with Step 1-1 Glob config patterns in SKILL.md
 CONFIG_PATTERNS = {
     "package.json",
     "tsconfig.json",
@@ -54,6 +54,7 @@ TEST_DIR_NAMES = {"tests", "test", "__tests__", "spec"}
 
 
 def is_config_file(path):
+    """Check if a file path is a config file based on its basename."""
     basename = os.path.basename(path)
     if basename in CONFIG_PATTERNS:
         return True
@@ -61,6 +62,7 @@ def is_config_file(path):
 
 
 def is_test_file(path):
+    """Check if a file path is a test file by directory name or naming convention."""
     basename = os.path.basename(path)
     parts = path.replace("\\", "/").split("/")
     if any(d in TEST_DIR_NAMES for d in parts):
@@ -71,6 +73,7 @@ def is_test_file(path):
 
 
 def detect_test_patterns(test_files):
+    """Derive glob-style test patterns from observed test file names."""
     patterns = set()
     for f in test_files:
         basename = os.path.basename(f)
@@ -90,6 +93,17 @@ def detect_test_patterns(test_files):
 
 
 def get_source_dir(path):
+    """Extract the top-level source directory (max depth 2).
+
+    Depth 2 balances granularity with summary compactness: deeper paths
+    would produce too many unique directories, inflating the JSON output
+    beyond the ~200 token target.
+
+    Examples:
+        "src/components/Button/index.tsx" -> "src/components"
+        "src/app.ts"                      -> "src"
+        "main.go"                         -> "."
+    """
     parts = path.replace("\\", "/").split("/")
     if len(parts) <= 1:
         return "."
@@ -97,6 +111,7 @@ def get_source_dir(path):
 
 
 def summarize(paths):
+    """Classify file paths and produce a fixed-size JSON-serializable summary."""
     source_files = []
     test_files = []
     config_files = []
@@ -139,9 +154,29 @@ def summarize(paths):
 
 def main():
     if len(sys.argv) > 2 and sys.argv[1] == "--json":
-        paths = json.loads(sys.argv[2])
+        try:
+            paths = json.loads(sys.argv[2])
+        except json.JSONDecodeError as e:
+            print(
+                json.dumps({"error": f"Invalid JSON input: {e}"}),
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if not isinstance(paths, list):
+            print(
+                json.dumps({"error": "Expected JSON array of file paths"}),
+                file=sys.stderr,
+            )
+            sys.exit(1)
     else:
-        paths = sys.stdin.read().strip().split("\n")
+        raw = sys.stdin.read().strip()
+        if not raw:
+            print(
+                json.dumps({"error": "No input provided. Pipe file paths or use --json."}),
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        paths = raw.split("\n")
 
     result = summarize(paths)
     print(json.dumps(result, indent=2))

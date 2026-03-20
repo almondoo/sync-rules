@@ -1,10 +1,10 @@
 ---
 name: sync-rules
 description: >
-  Analyze project structure and config files to generate/sync .claude/rules/ with coding conventions,
+  Analyzes project structure and config files to generate or sync .claude/rules/ with coding conventions,
   naming rules, test strategy, error handling, and architecture rules.
-  Use for: "generate rules", "create coding conventions", "set up rules", "sync rules",
-  "create .claude/rules", "update rules", "organize project rules".
+  Use when the user asks to generate rules, create coding conventions, set up project rules,
+  sync existing rules, or organize .claude/rules files.
 ---
 
 # sync-rules
@@ -20,6 +20,7 @@ You MUST create a task for each of these items and complete them in order:
 3. **Check existing rules** — detect new/update/sync mode
 4. **Present generation plan** — show file list with paths to user for approval
 5. **Write rule files** — generate approved files to `.claude/rules/`
+6. **Validate generated files** — run validation script and fix errors
 
 ## Step 1: Analyze Project
 
@@ -34,15 +35,24 @@ Run these Glob calls **in parallel** (a single message with multiple tool calls)
 - Source files: `**/*.{ts,tsx,js,jsx,go,py,rs,java,rb,swift,kt,kts,cs,php}`
 - Test files: `**/*.test.*`, `**/*.spec.*`, `**/*_test.*`, `**/test_*`, `**/tests/**`, `**/test/**`, `**/__tests__/**`, `**/spec/**`
 - Config files: `package.json`, `tsconfig.json`, `go.mod`, `Cargo.toml`, `pyproject.toml`, `requirements.txt`, `Gemfile`, `pom.xml`, `build.gradle`, `build.gradle.kts`, `settings.gradle.kts`, `.eslintrc*`, `eslint.config.*`, `.prettierrc*`, `prettier.config.*`, `biome.json`, `biome.jsonc`, `.editorconfig`, `.golangci.yml`, `.golangci.yaml`, `.rubocop.yml`, `rustfmt.toml`, `.rustfmt.toml`
+  <!-- Keep config list in sync with CONFIG_PATTERNS/CONFIG_PREFIXES in scripts/summarize_structure.py -->
 
 **Do NOT read or interpret the Glob results yourself.** Pass them to the compression script in the next step.
 
 ### 1-2. Compress Glob Results
 
-Combine all file paths from Step 1-1 and pipe them to the bundled script:
+Combine all file paths from Step 1-1 into a single newline-separated list and pipe to the bundled script.
+
+Example (if Glob returned `src/app.ts`, `src/app.test.ts`, `package.json`):
 
 ```bash
-printf '%s\n' <all file paths from Glob results> | python3 scripts/summarize_structure.py
+printf '%s\n' 'src/app.ts' 'src/app.test.ts' 'package.json' | python3 scripts/summarize_structure.py
+```
+
+For large result sets, the `--json` flag is also available:
+
+```bash
+python3 scripts/summarize_structure.py --json '["src/app.ts", "src/app.test.ts", "package.json"]'
 ```
 
 The script outputs a JSON summary:
@@ -85,12 +95,12 @@ After this phase, check what is still **unknown**. Typically, config files canno
 
 When gaps remain, use **Grep with `head_limit`** instead of reading full files:
 
-| Gap | Grep pattern | `head_limit` |
-|-----|-------------|-------------|
-| Naming conventions | `function |const |def |func ` | 10 |
-| Error handling | `catch|if err != nil|raise |throw ` | 10 |
-| API route detection | `app.get|router.get|@app.get|r.GET` | 5 |
-| Logging detection | `slog\.|logger\.|logging\.|console\.log` | 5 |
+| Gap | Grep pattern | `head_limit` | Rationale |
+|-----|-------------|-------------|-----------|
+| Naming conventions | `function |const |def |func ` | 10 | Need enough samples to detect majority pattern |
+| Error handling | `catch|if err != nil|raise |throw ` | 10 | Multiple error styles may coexist |
+| API route detection | `app.get|router.get|@app.get|r.GET` | 5 | Presence/absence is sufficient; routes are uniform |
+| Logging detection | `slog\.|logger\.|logging\.|console\.log` | 5 | Presence/absence is sufficient |
 
 Grep `head_limit` caps results — even on a 10,000-file project, you get at most N matching lines per pattern.
 
@@ -167,23 +177,6 @@ paths:
 paths:
   - "internal/handler/**/*.go"
   - "internal/api/**/*.go"
-```
-
-Python + FastAPI project:
-```yaml
-# testing.md
-paths:
-  - "tests/**/*.py"
-
-# security.md, error-handling.md, debugging.md, architecture.md
-paths:
-  - "app/**/*.py"
-  - "src/**/*.py"
-
-# api-design.md
-paths:
-  - "app/api/**/*.py"
-  - "app/routes/**/*.py"
 ```
 
 ## Step 3: Check Existing Rules
@@ -264,17 +257,13 @@ Wait for user confirmation. Adjust the plan based on feedback.
 
 ## Step 5: Write Rule Files
 
-Read `references/rule-format.md` to load format definitions.
+Read `references/rule-format.md` to load format definitions. Follow all format rules defined there.
 
 ### New Mode
 
 Write approved files to `.claude/rules/` using the Write tool.
 
-Each file MUST follow these rules:
-- Add `paths:` frontmatter for all files except `code-style.md`. `code-style.md` gets no frontmatter
-- Add metadata comment **after** the frontmatter block: `<!-- generated-by: sync-rules, last-synced: {today's date} -->`. For `code-style.md` (no frontmatter), place it at the file start
-- Wrap auto-generated sections with `<!-- sync-rules:begin:{ID} -->` / `<!-- sync-rules:end:{ID} -->`
-- Max 200 lines per file
+Additional constraints for generation:
 - One topic per file
 - Do not duplicate rules managed by existing linter/formatter. State "Defer to {tool name}" instead
 - Include Good/Bad code examples using detected language idioms
@@ -292,6 +281,22 @@ Each file MUST follow these rules:
 - Prefix filenames (e.g., `frontend-code-style.md`, `backend-code-style.md`)
 - Place shared rules in separate files without `paths`
 
+## Step 6: Validate Generated Files
+
+Run the validation script on all generated or updated rule files:
+
+```bash
+python3 scripts/validate_rules.py .claude/rules/
+```
+
+The script checks frontmatter syntax, metadata comments, section marker pairs, line count limits, and code fence closure.
+
+If validation fails:
+1. Review the specific error messages
+2. Fix the issues using the Edit tool
+3. Run validation again
+4. Only report completion when all files pass
+
 ## Constraints
 
 - Use Glob/Grep/Read tools for analysis. The only permitted shell command is running bundled scripts in `scripts/` for data processing (e.g., `python3 scripts/summarize_structure.py`). Do NOT run arbitrary shell commands or install external tools
@@ -302,3 +307,11 @@ Each file MUST follow these rules:
 - Do NOT write files without user confirmation
 - For languages not in the extension mapping (Elixir, Haskell, Dart, etc.), generate generic rules from file structure and config files. Omit language-specific idiom examples
 - When naming conventions are mixed (e.g., camelCase and snake_case coexist), adopt the majority pattern and note the mixture in the rule
+
+## Error Recovery
+
+- **Compression script returns empty/error output**: Verify that Glob results are non-empty. If no source files match the extension list, report to the user that no analyzable source files were found
+- **All Glob calls return zero results**: The project may use an unsupported language or unconventional structure. Ask the user for guidance on which files to analyze
+- **Config files listed in summary are unreadable**: Skip unreadable files and note the gap in the analysis summary. Do not fail the entire workflow
+- **User rejects the entire generation plan**: Ask what adjustments they want. Do not proceed without at least partial approval
+- **Validation script reports failures**: Fix the specific issues and re-run validation. Do not report completion until all files pass

@@ -1,0 +1,28 @@
+{
+  "name": "TypeScript + React project (happy path)",
+  "skills": ["sync-rules"],
+  "query": "Generate rules for this project",
+  "description": "Standard TypeScript + React project with Prettier. Tests the primary workflow end-to-end.",
+  "files": [
+    "package.json",
+    "tsconfig.json",
+    ".prettierrc",
+    "src/App.tsx",
+    "src/components/Button.tsx",
+    "src/api/users.ts",
+    "src/hooks/useAuth.ts",
+    "src/__tests__/App.test.tsx",
+    "src/api/__tests__/users.test.ts"
+  ],
+  "expected_behavior": [
+    "Runs tiered analysis: parallel Glob calls -> compress via summarize_structure.py -> config read -> targeted grep",
+    "Detects TypeScript + React as primary language/framework from package.json dependencies",
+    "Detects Prettier from .prettierrc and defers formatting rules to it",
+    "Generates code-style.md WITHOUT frontmatter, with 'Defer to Prettier' for formatting rules",
+    "Generates testing.md with paths scoped to '\"src/**/*.test.{ts,tsx}\"'",
+    "Generates api-design.md with paths scoped to API directories only (src/api/**/*.ts), excluding .tsx",
+    "Presents generation plan to user and waits for confirmation before writing any files",
+    "All generated files include correct frontmatter (where applicable), metadata comment, and section markers",
+    "Runs validate_rules.py on generated files and all pass"
+  ]
+}

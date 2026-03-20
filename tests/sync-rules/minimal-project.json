@@ -1,0 +1,21 @@
+{
+  "name": "Minimal Python project (edge case)",
+  "skills": ["sync-rules"],
+  "query": "Generate rules for this project",
+  "description": "Minimal single-file Python project with no tests, no API, no config, no linter. Tests graceful handling of sparse projects and conditional file generation.",
+  "files": [
+    "main.py"
+  ],
+  "expected_behavior": [
+    "Handles minimal project without errors or crashes",
+    "Compression script produces valid JSON summary with minimal data",
+    "Generates only code-style.md (always generated) and possibly error-handling.md",
+    "Does NOT generate testing.md (no test files detected)",
+    "Does NOT generate api-design.md (no API/web project detected)",
+    "Does NOT generate architecture.md (no clear architecture pattern)",
+    "Does NOT generate debugging.md (no logging library or observability tools)",
+    "Does NOT generate security.md (no web/API project detected)",
+    "Presents appropriately short generation plan",
+    "Does not invent rules without codebase evidence"
+  ]
+}

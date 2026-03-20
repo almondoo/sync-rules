@@ -1,5 +1,13 @@
 # Project Analysis Guide
 
+## Contents
+- [1. Language Detection](#1-language-detection) — extension mapping, framework detection, monorepo detection
+- [2. Architecture Pattern Detection](#2-architecture-pattern-detection) — directory-based inference
+- [3. Linter / Formatter Compatibility](#3-linter--formatter-compatibility-checklist) — tool deferral rules
+- [4. Test Pattern Classification](#4-test-pattern-classification) — file patterns, framework detection
+- [5. API Layer / Web Project Detection](#5-api-layer--web-project-detection) — route handlers, directories, dependencies
+- [6. Debugging / Logging Detection](#6-debugging--logging-detection) — logging libraries, observability tools
+
 ## 1. Language Detection
 
 ### Extension Mapping

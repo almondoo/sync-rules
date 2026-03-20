@@ -1,0 +1,32 @@
+{
+  "name": "Go project with existing rules (update mode)",
+  "skills": ["sync-rules"],
+  "query": "Sync rules with current project state",
+  "description": "Go project with golangci-lint and pre-existing auto-generated rules. Tests update mode: detecting existing rules, preserving user content, and classifying changes.",
+  "files": [
+    "go.mod",
+    ".golangci.yml",
+    "internal/handler/user.go",
+    "internal/handler/user_test.go",
+    "internal/service/auth.go",
+    "pkg/middleware/logging.go",
+    "cmd/server/main.go",
+    ".claude/rules/code-style.md",
+    ".claude/rules/error-handling.md"
+  ],
+  "preconditions": {
+    ".claude/rules/code-style.md": "Must contain '<!-- generated-by: sync-rules' metadata comment and sync-rules markers",
+    ".claude/rules/error-handling.md": "Must NOT contain sync-rules metadata (user-created file)"
+  },
+  "expected_behavior": [
+    "Detects existing .claude/rules/*.md files and enters update mode",
+    "Identifies code-style.md as auto-generated (has metadata comment) and error-handling.md as user-created",
+    "Does NOT overwrite or modify user-created error-handling.md",
+    "Updates only sync-rules marker sections in code-style.md, preserving user content outside markers",
+    "Defers Go static analysis rules to golangci-lint",
+    "Detects Go Standard Layout architecture from internal/pkg/cmd directories",
+    "Classifies changes as Add/Update/Remove and presents update plan",
+    "Waits for user confirmation before applying changes",
+    "Runs validate_rules.py on updated files and all pass"
+  ]
+}
