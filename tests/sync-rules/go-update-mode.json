@@ -27,6 +27,17 @@
     "source_dirs_contains": ["cmd/server", "internal/handler", "internal/service", "pkg/middleware"],
     "test_dirs_contains": ["internal/handler"]
   },
+  "verify": {
+    "required_files": ["code-style.md"],
+    "preserve_files": {
+      "error-handling.md": "User-created file must not be overwritten with sync-rules metadata"
+    },
+    "file_checks": {
+      "code-style.md": {
+        "content_contains": ["Defer to golangci-lint"]
+      }
+    }
+  },
   "expected_behavior": [
     "Detects existing .claude/rules/*.md files and enters update mode",
     "Identifies code-style.md as auto-generated (has metadata comment) and error-handling.md as user-created",

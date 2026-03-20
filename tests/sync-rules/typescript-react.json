@@ -23,6 +23,24 @@
     "source_dirs_contains": ["src", "src/api", "src/components", "src/hooks"],
     "test_dirs_contains": ["src/__tests__", "src/api"]
   },
+  "verify": {
+    "required_files": ["code-style.md"],
+    "file_checks": {
+      "code-style.md": {
+        "has_frontmatter": false,
+        "content_contains": ["Defer to Prettier"]
+      },
+      "testing.md": {
+        "has_frontmatter": true,
+        "frontmatter_contains": [".test."]
+      },
+      "api-design.md": {
+        "has_frontmatter": true,
+        "frontmatter_contains": ["src/api"],
+        "frontmatter_not_contains": [".tsx"]
+      }
+    }
+  },
   "expected_behavior": [
     "Runs tiered analysis: parallel Glob calls -> compress via summarize_structure.py -> config read -> targeted grep",
     "Detects TypeScript + React as primary language/framework from package.json dependencies",

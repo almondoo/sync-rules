@@ -15,6 +15,15 @@
     "test_dirs": [],
     "source_dirs_contains": ["."]
   },
+  "verify": {
+    "required_files": ["code-style.md"],
+    "forbidden_files": ["testing.md", "api-design.md", "security.md", "debugging.md"],
+    "file_checks": {
+      "code-style.md": {
+        "has_frontmatter": false
+      }
+    }
+  },
   "expected_behavior": [
     "Handles minimal project without errors or crashes",
     "Compression script produces valid JSON summary with minimal data",
