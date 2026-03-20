@@ -14,6 +14,15 @@
     "src/__tests__/App.test.tsx",
     "src/api/__tests__/users.test.ts"
   ],
+  "assertions": {
+    "total_source_files": 4,
+    "total_test_files": 2,
+    "extensions_contains": { ".ts": 3, ".tsx": 3 },
+    "config_files_contains": [".prettierrc", "package.json", "tsconfig.json"],
+    "test_patterns_contains": ["*.test.ts", "*.test.tsx"],
+    "source_dirs_contains": ["src", "src/api", "src/components", "src/hooks"],
+    "test_dirs_contains": ["src/__tests__", "src/api"]
+  },
   "expected_behavior": [
     "Runs tiered analysis: parallel Glob calls -> compress via summarize_structure.py -> config read -> targeted grep",
     "Detects TypeScript + React as primary language/framework from package.json dependencies",

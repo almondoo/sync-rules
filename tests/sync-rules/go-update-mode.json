@@ -18,6 +18,15 @@
     ".claude/rules/code-style.md": "Must contain '<!-- generated-by: sync-rules' metadata comment and sync-rules markers",
     ".claude/rules/error-handling.md": "Must NOT contain sync-rules metadata (user-created file)"
   },
+  "assertions": {
+    "total_source_files": 4,
+    "total_test_files": 1,
+    "extensions_contains": { ".go": 5 },
+    "config_files_contains": [".golangci.yml", "go.mod"],
+    "test_patterns_contains": ["*_test.go"],
+    "source_dirs_contains": ["cmd/server", "internal/handler", "internal/service", "pkg/middleware"],
+    "test_dirs_contains": ["internal/handler"]
+  },
   "expected_behavior": [
     "Detects existing .claude/rules/*.md files and enters update mode",
     "Identifies code-style.md as auto-generated (has metadata comment) and error-handling.md as user-created",
