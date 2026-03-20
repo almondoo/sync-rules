@@ -150,13 +150,3 @@ Classify as needing `debugging.md` if any of the following match:
 - `logger.info(`, `logger.error(`, `logger.debug(`
 - `log.Printf(`, `log.Println(`, `slog.Info(`
 
-## 7. Workflows Detection
-
-Generate `workflows.md` if any of the following exist:
-
-- `.github/workflows/` directory (GitHub Actions)
-- `.gitlab-ci.yml` (GitLab CI)
-- `Jenkinsfile` (Jenkins)
-- `.circleci/config.yml` (CircleCI)
-- `CONTRIBUTING.md` (contribution guide)
-- `Makefile` containing `test`, `build`, `deploy`, or `lint` targets

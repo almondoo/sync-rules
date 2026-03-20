@@ -20,23 +20,25 @@ paths:
 
 ### Metadata Comment
 
-All generated rule files MUST start with the following HTML comment (before frontmatter if present):
+All generated rule files MUST include the following HTML comment **after** the frontmatter block (or at the very top for files without frontmatter like `code-style.md`):
 
 ```markdown
-<!-- generated-by: sync-rules@1.0.0, last-synced: YYYY-MM-DD -->
+<!-- generated-by: sync-rules, last-synced: YYYY-MM-DD -->
 ```
 
-- `generated-by`: Plugin name@version. Used for format compatibility in update mode
+- `generated-by`: Plugin name. Used to distinguish auto-generated files from user-created files in update mode
 - `last-synced`: Generation/update date for freshness tracking
+
+The metadata comment goes after frontmatter because Claude Code expects `---` delimiters at the very start of the file to parse `paths:` correctly. Placing anything before frontmatter breaks path scoping.
 
 ## 2. File Structure Template
 
 ```markdown
-<!-- generated-by: sync-rules@1.0.0, last-synced: YYYY-MM-DD -->
 ---
 paths:
   - "src/**/*.ts"
 ---
+<!-- generated-by: sync-rules, last-synced: YYYY-MM-DD -->
 
 # {Topic Name}
 
