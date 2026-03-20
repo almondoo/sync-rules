@@ -1,4 +1,5 @@
 .claude
+!tests/sync-rules/fixtures/**/.claude
 .DS_Store
 __pycache__
 docs
