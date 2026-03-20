@@ -3,14 +3,12 @@
 # Run from repo root: bash tests/sync-rules/test_sync_rules.sh
 #
 # Sections:
-#   1. count_files.py unit tests (15)
-#   2. validate_rules.py unit tests (16)
-#   3. Eval scenario integration smoke tests (3)
-#   4. Fixture output verification (go-update-mode only, others when available)
+#   1. validate_rules.py unit tests (16)
+#   2. Eval scenario manual checklists (3)
+#   3. Fixture output verification (go-update-mode only, others when available)
 
 set -euo pipefail
 
-COUNT="plugins/sync-rules/skills/sync-rules/scripts/count_files.py"
 VALIDATE="plugins/sync-rules/skills/sync-rules/scripts/validate_rules.py"
 EVAL_DIR="tests/sync-rules"
 FIXTURES_DIR="tests/sync-rules/fixtures"
@@ -56,64 +54,9 @@ assert_not_contains() {
 }
 
 # ============================================================
-# 1. count_files.py — unit tests (15)
+# 1. validate_rules.py — unit tests (16)
 # ============================================================
 
-echo "==== count_files.py ===="
-
-echo "--- Basic counting ---"
-OUT=$(printf '%s\n' 'src/app.ts' 'src/utils.ts' 'lib/helper.go' 'package.json' | python3 "$COUNT")
-assert_eq "total" "4" "$(echo "$OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['total'])")"
-assert_eq "src count" "2" "$(echo "$OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['dirs']['src'])")"
-assert_eq "lib count" "1" "$(echo "$OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['dirs']['lib'])")"
-assert_eq "root count" "1" "$(echo "$OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['dirs']['.'])")"
-
-echo "--- Extension counting ---"
-OUT=$(printf '%s\n' 'src/a.ts' 'src/b.ts' 'src/c.tsx' 'lib/d.go' | python3 "$COUNT")
-assert_eq ".ts count" "2" "$(echo "$OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['extensions']['.ts'])")"
-assert_eq ".tsx count" "1" "$(echo "$OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['extensions']['.tsx'])")"
-assert_eq ".go count" "1" "$(echo "$OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['extensions']['.go'])")"
-
-echo "--- Deep directory grouping ---"
-OUT=$(printf '%s\n' 'src/api/v2/handlers/internal/user.ts' | python3 "$COUNT")
-assert_contains "depth 4 truncation" '"src/api/v2/handlers"' "$OUT"
-
-OUT=$(printf '%s\n' 'src/api/v2/handlers/internal/user.ts' | python3 "$COUNT" --depth 2)
-assert_contains "depth 2 truncation" '"src/api"' "$OUT"
-
-OUT=$(printf '%s\n' 'src/api/v2/handlers/internal/user.ts' | python3 "$COUNT" --depth 0)
-assert_contains "depth 0 (no limit)" '"src/api/v2/handlers/internal"' "$OUT"
-
-echo "--- --json flag ---"
-OUT=$(python3 "$COUNT" --json '["src/app.ts", "lib/util.go"]')
-assert_eq "json flag total" "2" "$(echo "$OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['total'])")"
-
-echo "--- Error handling ---"
-if echo -n "" | python3 "$COUNT" 2>/dev/null; then
-  echo "  FAIL: should exit non-zero on empty stdin"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: exits non-zero on empty stdin"
-  PASS=$((PASS + 1))
-fi
-if python3 "$COUNT" --json 'not-json' 2>/dev/null; then
-  echo "  FAIL: should exit non-zero on invalid JSON"
-  FAIL=$((FAIL + 1))
-else
-  echo "  PASS: exits non-zero on invalid JSON"
-  PASS=$((PASS + 1))
-fi
-
-echo "--- Output has all required keys ---"
-OUT=$(printf '%s\n' 'src/app.ts' | python3 "$COUNT")
-KEYS=$(echo "$OUT" | python3 -c "import sys,json; print(sorted(json.load(sys.stdin).keys()))")
-assert_eq "output keys" "['dirs', 'extensions', 'total']" "$KEYS"
-
-# ============================================================
-# 2. validate_rules.py — unit tests (16)
-# ============================================================
-
-echo ""
 echo "==== validate_rules.py ===="
 VTMP=""
 
@@ -375,45 +318,23 @@ fi
 v_teardown
 
 # ============================================================
-# 3. Eval scenario — integration smoke tests (3)
-#    Verifies count_files produces valid JSON with correct keys
-#    for realistic file lists. Manual checklists collected.
+# 2. Eval scenario — manual checklists (3)
+#    Collects expected_behavior items for manual verification.
 # ============================================================
 
 echo ""
 echo "==== Eval scenarios ===="
 
-EXPECTED_KEYS='["dirs","extensions","total"]'
-
 for eval_file in "$EVAL_DIR"/*.json; do
   [[ -f "$eval_file" ]] || continue
 
-  # Skip files without "files" field
   has_files=$(python3 -c "import json; d=json.load(open('$eval_file')); print('yes' if 'files' in d else 'no')")
   [[ "$has_files" == "yes" ]] || continue
 
   name=$(python3 -c "import json; print(json.load(open('$eval_file'))['name'])")
-  files_json=$(python3 -c "import json; print(json.dumps(json.load(open('$eval_file'))['files']))")
 
   echo "--- $name ---"
-
-  # Smoke test: count_files runs and returns valid JSON with all keys
-  if OUT=$(python3 "$COUNT" --json "$files_json" 2>/dev/null) \
-     && echo "$OUT" | python3 -c "
-import sys, json
-out = json.load(sys.stdin)
-expected = $EXPECTED_KEYS
-missing = [k for k in expected if k not in out]
-if missing:
-    print(f'Missing keys: {missing}', file=sys.stderr)
-    sys.exit(1)
-" 2>/dev/null; then
-    echo "  PASS: $name — valid output with all keys"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL: $name — invalid output or missing keys"
-    FAIL=$((FAIL + 1))
-  fi
+  echo "  OK: scenario loaded"
 
   # Collect manual checklist items
   items=$(python3 -c "
@@ -430,7 +351,7 @@ $items
 done
 
 # ============================================================
-# 4. Fixture output verification
+# 3. Fixture output verification
 #    Only runs on fixtures that have .claude/rules/ (skill executed).
 # ============================================================
 

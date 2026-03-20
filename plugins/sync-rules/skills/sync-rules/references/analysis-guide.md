@@ -49,21 +49,6 @@ From the classified files, build a structural summary:
 
 4. **List config files**: Collect all detected config file paths.
 
-**For large projects (500+ source files)**, use the counting script instead of manual counting:
-
-```bash
-printf '%s\n' <source file paths> | python3 scripts/count_files.py
-```
-
-The script outputs directory and extension counts:
-```json
-{
-  "dirs": {"src/api": 15, "src/components/ui": 8, "src/hooks": 5},
-  "extensions": {".ts": 42, ".tsx": 15},
-  "total": 57
-}
-```
-
 ### Examine File Paths
 
 Scan the raw Glob results directly to detect architectural signals. Report any directory structure patterns that reveal the project's organizational intent — layering, feature grouping, infrastructure abstraction, API versioning, test colocation strategy, etc.

@@ -12,7 +12,6 @@ description: >
 ## Resources
 - **Analysis criteria**: [references/analysis-guide.md](references/analysis-guide.md)
 - **Rule format spec**: [references/rule-format.md](references/rule-format.md)
-- **File counter (large projects only)**: `python3 scripts/count_files.py` (execute)
 - **Rule validator**: `python3 scripts/validate_rules.py` (execute)
 
 # sync-rules
@@ -33,13 +32,36 @@ You MUST create a task for each of these items and complete them in order:
 
 ## Step 1: Analyze Project
 
-Spawn an exploration subagent to perform the full analysis. This keeps raw Glob results, config file contents, and Grep output out of your main context.
+Adapt the subagent strategy based on project characteristics. This keeps raw Glob results, config file contents, and Grep output out of your main context.
 
-Use the Agent tool (subagent_type: `Explore`, thoroughness: `very thorough`):
+### Pre-assessment
 
-**Prompt**: Read `references/analysis-guide.md` and follow the Analysis Procedure section. Execute all steps: parallel Glob scans, file classification (source/test/config), structure analysis, file path examination, config file reading, representative source file reading, and language-specific gap detection with Grep. For large projects (500+ source files), use `python3 scripts/count_files.py` for directory/extension counting. Return the complete analysis summary as described in the Output Format subsection.
+Run parallel Glob calls for language config files only (fast, minimal context impact):
+- `package.json`, `go.mod`, `Cargo.toml`, `pyproject.toml`, `requirements.txt`, `Gemfile`, `pom.xml`, `build.gradle`, `build.gradle.kts`
 
-The subagent returns a structured summary containing:
+Count distinct language-specific config files to determine the number of languages in the project.
+
+### Strategy selection
+
+**Single-language project** (1 language config, no monorepo indicators):
+
+Spawn one Explore subagent (thoroughness: `very thorough`) that executes the full Analysis Procedure in `references/analysis-guide.md`. This is the simplest and most efficient path for typical projects.
+
+**Prompt**: Read `references/analysis-guide.md` and follow the Analysis Procedure section. Execute all steps: parallel Glob scans, file classification (source/test/config), structure analysis, file path examination, config file reading, representative source file reading, and language-specific gap detection with Grep. Return the complete analysis summary as described in the Output Format subsection.
+
+**Multi-language / monorepo project** (2+ language configs, or `packages/`/`apps/`/`services/` directories exist):
+
+Spawn all subagents in parallel in a single message. Each subagent runs its own Glob and analysis independently — no sequential phase needed.
+
+- **Structure + config analyzer** (Explore subagent, thoroughness: `medium`): Read `references/analysis-guide.md`. Run Glob for ALL source files and config files. Execute File Structure Scan, Classify Files, Analyze Structure, and Examine File Paths steps. Then read all detected config files and detect languages/frameworks (Section 1), linter/formatter deferral rules (Section 3), test framework (Section 4), API layer presence (Section 5), and logging/observability tools (Section 6). Return file classification, structure summary, directory observations, and all config-derived findings.
+
+- **Source analyzer per language** (Explore subagent, thoroughness: `medium`, one per detected language from pre-assessment, max 3): Run Glob for `**/*.[ext]` files only. From the results, classify source vs test files, identify top source directories by file count, and select a representative file from each of the top 3 directories (prefer specific names over generic ones like index, main, types, utils). Read the representative files and examine import ordering, naming conventions, error handling style, comment style, function structure. Then run gap detection Grep using the Naming Convention and Error Handling pattern tables in `references/analysis-guide.md`, filtered to `*.[ext]` files with `head_limit: 30`. Return source code observations and grep findings.
+
+Merge all subagent results into a unified analysis summary.
+
+### Analysis summary
+
+Regardless of strategy, the final analysis summary contains:
 - **File classification**: source/test/config file counts, extension counts, test patterns, config files list
 - **Source directories**: top directories by file count with representative files read
 - **Languages and frameworks** detected from config files
@@ -164,9 +186,15 @@ Use the Agent tool (subagent_type: `code-reviewer`):
 **Prompt**: Review the rule generation plan and analysis summary. For each planned rule file, verify:
 1. The file's inclusion condition is met (e.g., testing.md requires test files to exist)
 2. `paths:` patterns correctly scope to the intended directories (check against the analysis summary's `source_dirs`)
-3. Rules that should defer to a linter/formatter are planned to defer (cross-check config files with Section 3 of analysis-guide.md)
-4. No planned rules lack evidence in the analysis summary
-5. No contradictions between planned rule files
+3. UI extensions (`.tsx`, `.jsx`) are excluded from non-UI rule files (`security.md`, `api-design.md`)
+4. Test patterns in `testing.md` match only the naming conventions actually used in the project (not both `*.test.*` and `*_test.*` when only one exists)
+5. Rules that should defer to a linter/formatter are planned to defer (cross-check config files with Section 3 of analysis-guide.md)
+6. `code-style-{language}.md` filenames use the correct language suffix from Step 2's extension mapping (e.g., `kotlin` not `kt`)
+7. No planned file is likely to exceed the 200-line limit; if so, a split plan exists
+8. No planned rules lack evidence in the analysis summary
+9. No contradictions between planned rule files
+10. (Monorepo only) Per-language files have `paths:` scoped to subdirectories, not project root
+11. (Update mode only) No user-created files (those without `<!-- generated-by: sync-rules` comment) are in the overwrite list
 Report issues as a list with planned file name and what is wrong. If no issues found, respond with APPROVE.
 
 ### Review Loop
@@ -216,7 +244,7 @@ If validation fails:
 
 ## Constraints
 
-- Use Glob/Grep/Read tools for analysis. The only permitted shell commands are running bundled scripts in `scripts/` (e.g., `python3 scripts/count_files.py` for large projects, `python3 scripts/validate_rules.py`). Do NOT run arbitrary shell commands or install external tools
+- Use Glob/Grep/Read tools for analysis. The only permitted shell command is running `python3 scripts/validate_rules.py`. Do NOT run arbitrary shell commands or install external tools
 - Do NOT generate rules that conflict with existing linter/formatter settings
 - Use `paths` frontmatter aggressively to limit rule scope
 - Do NOT generate rules without evidence from the codebase. Base rules on actual project patterns, not generic advice
