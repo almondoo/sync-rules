@@ -1,6 +1,6 @@
 {
   "name": "sync-rules-skill",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "owner": {
     "name": "almondoo"
   },
@@ -9,7 +9,7 @@
       "name": "sync-rules",
       "description": "Analyze project codebase and auto-generate .claude/rules/ for coding conventions",
       "source": "./plugins/sync-rules",
-      "version": "1.0.2"
+      "version": "1.0.3"
     }
   ]
 }

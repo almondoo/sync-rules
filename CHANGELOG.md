@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.3] - 2026-03-20
+
+### Added
+- Result summary table (Step 9) showing added/updated/removed files after rule generation
+
 ## [1.0.2] - 2026-03-20
 
 ### Added

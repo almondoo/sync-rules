@@ -30,6 +30,7 @@ You MUST create a task for each of these items and complete them in order:
 - [ ] Step 6: Review plan (subagent review loop until approved)
 - [ ] Step 7: Write rule files
 - [ ] Step 8: Validate generated files
+- [ ] Step 9: Present result summary
 
 ## Step 1: Analyze Project
 
@@ -311,6 +312,33 @@ If validation fails:
 2. Fix the issues using the Edit tool
 3. Run validation again
 4. Only report completion when all files pass
+
+## Step 9: Present Result Summary
+
+After validation passes, present a summary table to the user showing all changes made.
+
+### Format
+
+**New mode:**
+
+| File | Status | Description |
+|------|--------|-------------|
+| `code-style-typescript.md` | Added | TypeScript naming, imports, formatting conventions |
+| `testing.md` | Added | Vitest patterns, assertion style, file naming |
+| ... | ... | ... |
+
+**Update mode:**
+
+| File | Status | Description |
+|------|--------|-------------|
+| `code-style-typescript.md` | Updated | Added async/await error handling section |
+| `api-design.md` | Added | REST endpoint conventions |
+| `debugging.md` | Removed | Migrated to linter rules |
+| ... | ... | ... |
+
+Status values: `Added`, `Updated`, `Removed`, `Skipped` (user-created, preserved)
+
+Include a final line with the total count: `{N} files added, {M} files updated` (and `{K} files removed` if applicable).
 
 ## Constraints
 
