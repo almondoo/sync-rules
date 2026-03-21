@@ -24,13 +24,11 @@ You MUST create a task for each of these items and complete them in order:
 
 - [ ] Step 1: Analyze project (scan files, read configs, detect patterns)
 - [ ] Step 2: Check CLAUDE.md (detect contradictions and overlap)
-- [ ] Step 3: Determine path patterns (derive glob patterns)
-- [ ] Step 4: Detect mode (new vs update)
-- [ ] Step 5: Present plan (wait for user confirmation)
-- [ ] Step 6: Review plan (subagent review loop until approved)
-- [ ] Step 7: Write rule files
-- [ ] Step 8: Validate generated files
-- [ ] Step 9: Present result summary
+- [ ] Step 3: Prepare plan (derive paths, check existing rules, determine mode)
+- [ ] Step 4: Present plan (wait for user confirmation)
+- [ ] Step 5: Review plan (subagent review loop until approved)
+- [ ] Step 6: Write rule files
+- [ ] Step 7: Validate & summarize (format check, content quality, result summary)
 
 ## Step 1: Analyze Project
 
@@ -102,9 +100,13 @@ Store findings as a structured list of:
 - **Contradictions**: each with CLAUDE.md statement, conflicting evidence, and recommended action
 - **Overlaps**: each with CLAUDE.md section, overlapping rule category, and recommended action
 
-These findings are presented to the user in Step 5 (Present Generation Plan).
+These findings are presented to the user in Step 4 (Present Plan).
 
-## Step 3: Determine Path Patterns
+## Step 3: Prepare Plan
+
+Derive path patterns, check existing rules, and determine the generation mode.
+
+### Derive Path Patterns
 
 Derive `paths:` glob patterns for each rule file from the analysis summary returned in Step 1 (`source_dirs`, `test_dirs`, `test_patterns`, `extensions`). Patterns MUST be based on the project's actual directory structure — never use hardcoded values.
 
@@ -182,15 +184,15 @@ paths: ["src/api/**/*.ts", "src/routes/**/*.ts"]
 
 Go project: use `**/*_test.go` for tests, `internal/**/*.go` + `pkg/**/*.go` + `cmd/**/*.go` for source, `internal/handler/**/*.go` for API.
 
-## Step 4: Check Existing Rules
+### Check Existing Rules
 
 Search for `.claude/rules/**/*.md` with Glob.
 
-### No existing rules → New mode
+#### No existing rules → New mode
 
-Proceed to Step 5.
+Proceed to Step 4.
 
-### Existing rules found → Update mode
+#### Existing rules found → Update mode
 
 1. Read all existing rule files
 2. Check each file for a comment starting with `<!-- generated-by: sync-rules`:
@@ -201,9 +203,9 @@ Proceed to Step 5.
    - **Update**: existing rules conflicting with changed settings
    - **Remove proposal**: rules no longer needed (e.g., migrated to linter)
 
-Proceed to Step 5.
+Proceed to Step 4.
 
-## Step 5: Present Generation Plan
+## Step 4: Present Plan
 
 Present the list of files to generate (or update) to the user.
 
@@ -248,7 +250,7 @@ Present warnings alongside the file list. The user decides how to proceed:
 - Adjust rule generation to avoid overlap
 - Any combination of the above
 
-## Step 6: Review Plan
+## Step 5: Review Plan
 
 Spawn a review subagent to verify the generation plan and analysis results before writing any files. This catches issues early — before they become rule files that need fixing.
 
@@ -270,7 +272,7 @@ Report issues as a list with planned file name and what is wrong. If no issues f
 
 ### Review Loop
 
-1. If the subagent returns **APPROVE** → proceed to Step 7
+1. If the subagent returns **APPROVE** → proceed to Step 6
 2. If the subagent returns **issues** →
    a. Adjust the plan (modify paths, add/remove files, update deferral rules)
    b. Present the revised plan to the user for confirmation
@@ -278,7 +280,7 @@ Report issues as a list with planned file name and what is wrong. If no issues f
    d. Repeat until APPROVE or 3 iterations reached
 3. If 3 iterations pass without APPROVE → report remaining issues to the user for guidance
 
-## Step 7: Write Rule Files
+## Step 6: Write Rule Files
 
 Read `references/rule-format.md` to load format definitions. Follow all format rules defined there.
 
@@ -297,7 +299,9 @@ Write approved files to `.claude/rules/` using the Write tool.
 - Generate per-language files (`code-style-{language}.md`) with `paths:` scoped to the subdirectory (e.g., `paths: ["backend/**/*.go"]`). No filename prefixing
 - Place shared rules in separate files with `paths:` covering all relevant directories
 
-## Step 8: Validate Generated Files
+## Step 7: Validate & Summarize
+
+### Format Validation
 
 Run the validation script on all generated or updated rule files:
 
@@ -311,13 +315,21 @@ If validation fails:
 1. Review the specific error messages
 2. Fix the issues using the Edit tool
 3. Run validation again
-4. Only report completion when all files pass
+4. Only proceed to content quality check when all files pass
 
-## Step 9: Present Result Summary
+### Content Quality Check
 
-After validation passes, present a summary table to the user showing all changes made.
+After format validation passes, read all generated rule files and verify:
 
-### Format
+- **Evidence check**: Each rule is grounded in Step 1 analysis results. No pattern is stated as "universal" unless verified across the codebase
+- **Consistency check**: No contradictions between rules in different files (e.g., different error handling styles recommended in `code-style-typescript.md` vs `error-handling.md`)
+- **Example accuracy**: Good examples follow the stated rule, Bad examples violate it, and both use syntax/APIs consistent with the project's detected language and frameworks
+
+If quality issues are found, fix with the Edit tool and re-run format validation.
+
+### Result Summary
+
+After validation and quality checks pass, present a summary table to the user showing all changes made.
 
 **New mode:**
 

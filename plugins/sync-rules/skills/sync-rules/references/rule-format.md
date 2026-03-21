@@ -8,7 +8,7 @@ Claude Code only recognizes `paths:` in `.claude/rules` frontmatter. All other m
 
 ### Paths Scope
 
-All generated rule files MUST have `paths:` frontmatter. Patterns are derived from the project's actual directory structure in Step 2.
+All generated rule files MUST have `paths:` frontmatter. Patterns are derived from the project's actual directory structure in Step 3.
 
 ```yaml
 ---
