@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.4] - 2026-03-21
+
+### Changed
+- Consolidate 9-step workflow to 7 steps by merging Step 3+4 (Prepare Plan) and Step 8+9 (Validate & Summarize)
+- Add content quality check (evidence, consistency, example accuracy) to validation step
+- Fix incorrect step reference in rule-format.md
+
 ## [1.0.3] - 2026-03-20
 
 ### Added
