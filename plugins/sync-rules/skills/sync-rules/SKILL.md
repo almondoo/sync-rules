@@ -41,17 +41,9 @@ Run parallel Glob calls for language config files only (fast, minimal context im
 
 Count distinct language-specific config files to determine the number of languages in the project.
 
-### Strategy selection
+### Strategy
 
-**Single-language project** (1 language config, no monorepo indicators):
-
-Spawn one Explore subagent (thoroughness: `very thorough`) that executes the full Analysis Procedure in `references/analysis-guide.md`. This is the simplest and most efficient path for typical projects.
-
-**Prompt**: Read `references/analysis-guide.md` and follow the Analysis Procedure section. Execute all steps: parallel Glob scans, file classification (source/test/config), structure analysis, file path examination, config file reading, representative source file reading, and language-specific gap detection with Grep. Return the complete analysis summary as described in the Output Format subsection.
-
-**Multi-language / monorepo project** (2+ language configs, or `packages/`/`apps/`/`services/` directories exist):
-
-Spawn all subagents in parallel in a single message. Each subagent runs its own Glob and analysis independently — no sequential phase needed.
+Spawn all subagents in parallel in a single message. Each subagent runs its own Glob and analysis independently.
 
 - **Structure + config analyzer** (Explore subagent, thoroughness: `medium`): Read `references/analysis-guide.md`. Run Glob for ALL source files and config files. Execute File Structure Scan, Classify Files, Analyze Structure, and Examine File Paths steps. Then read all detected config files and detect languages/frameworks (Section 1), linter/formatter deferral rules (Section 3), test framework (Section 4), API layer presence (Section 5), and logging/observability tools (Section 6). Return file classification, structure summary, directory observations, and all config-derived findings.
 
@@ -77,7 +69,7 @@ Use this summary as input for all subsequent steps.
 
 ## Step 2: Check CLAUDE.md
 
-Read `.claude/CLAUDE.md` using the Read tool. If the file does not exist, skip this step and proceed to Step 3.
+Read both `CLAUDE.md` (repository root) and `.claude/CLAUDE.md` using the Read tool. If both exist, combine their content for analysis. If only one exists, use that file. If neither exists, skip this step and proceed to Step 3.
 
 ### Contradiction Detection
 
@@ -284,6 +276,8 @@ Report issues as a list with planned file name and what is wrong. If no issues f
 
 Read `references/rule-format.md` to load format definitions. Follow all format rules defined there.
 
+Each rule MUST be classified using the accuracy levels defined in `references/analysis-guide.md` Rule Accuracy Guidelines (Section 7). Use qualifying language ("typically", "in most cases") for common patterns and state conditions explicitly for conditional rules. Do not state a pattern as universal unless it was verified across all relevant files in the codebase during Step 1 analysis.
+
 ### New Mode
 
 Write approved files to `.claude/rules/` using the Write tool.
@@ -315,17 +309,38 @@ If validation fails:
 1. Review the specific error messages
 2. Fix the issues using the Edit tool
 3. Run validation again
-4. Only proceed to content quality check when all files pass
+4. Only proceed to paths match verification when all files pass
+
+### Paths Match Verification
+
+After format validation passes, verify that each rule file's `paths:` patterns actually match files in the project:
+
+1. For each generated or updated rule file, extract all `paths:` glob patterns from frontmatter
+2. Run Glob for each pattern against the project root
+3. If any pattern returns 0 matches:
+   - Report the unmatched pattern and its rule file to the user
+   - Ask whether the pattern should be corrected or is intentional (e.g., planned directory)
+   - If corrected, update the rule file's frontmatter with the Edit tool and re-run format validation
+4. Proceed to content quality check only when all patterns match at least one file
 
 ### Content Quality Check
 
-After format validation passes, read all generated rule files and verify:
+Spawn a review subagent to verify the content quality of generated rules. This catches evidence gaps, contradictions, and inaccurate examples that the rule author is unlikely to notice in self-review.
 
-- **Evidence check**: Each rule is grounded in Step 1 analysis results. No pattern is stated as "universal" unless verified across the codebase
-- **Consistency check**: No contradictions between rules in different files (e.g., different error handling styles recommended in `code-style-typescript.md` vs `error-handling.md`)
-- **Example accuracy**: Good examples follow the stated rule, Bad examples violate it, and both use syntax/APIs consistent with the project's detected language and frameworks
+Use the Agent tool (subagent_type: `general-purpose`), building the prompt from `references/content-quality-reviewer-prompt.md`:
 
-If quality issues are found, fix with the Edit tool and re-run format validation.
+**Prompt**: Replace `[RULE_FILE_PATHS]` with the paths to all generated/updated rule files, and `[ANALYSIS_SUMMARY]` with the Step 1 analysis summary.
+
+### Content Quality Review Loop
+
+1. If the subagent returns **Approved** → proceed to Result Summary
+2. If the subagent returns **Issues Found** →
+   a. Fix the issues using the Edit tool
+   b. Re-run format validation (validate_rules.py) on modified files
+   c. Re-run paths match verification on modified files
+   d. Spawn the review subagent again with the same prompt
+   e. Repeat until Approved or 3 iterations reached
+3. If 3 iterations pass without Approved → report remaining issues to the user for guidance
 
 ### Result Summary
 

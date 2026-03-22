@@ -1,0 +1,82 @@
+{
+  "name": "TypeScript + Go monorepo",
+  "skills": ["sync-rules"],
+  "query": "Generate rules for this project",
+  "description": "Monorepo with TypeScript React frontend and Go Gin backend. Tests parallel subagent dispatch, per-language code-style file generation, subdirectory path scoping, and .tsx exclusion from backend rules.",
+  "files": [
+    "package.json",
+    "go.mod",
+    "frontend/tsconfig.json",
+    "frontend/.prettierrc",
+    "frontend/src/App.tsx",
+    "frontend/src/api/client.ts",
+    "frontend/src/__tests__/App.test.tsx",
+    "backend/.golangci.yml",
+    "backend/internal/handler/user.go",
+    "backend/internal/handler/user_test.go",
+    "backend/cmd/server/main.go"
+  ],
+  "expected_classification": {
+    "source_files": [
+      "frontend/src/App.tsx",
+      "frontend/src/api/client.ts",
+      "backend/internal/handler/user.go",
+      "backend/cmd/server/main.go"
+    ],
+    "test_files": [
+      "frontend/src/__tests__/App.test.tsx",
+      "backend/internal/handler/user_test.go"
+    ],
+    "config_files": [
+      "package.json",
+      "go.mod",
+      "frontend/tsconfig.json",
+      "frontend/.prettierrc",
+      "backend/.golangci.yml"
+    ],
+    "test_patterns": ["*.test.tsx", "*_test.go"]
+  },
+  "verify": {
+    "required_files": [
+      "code-style-typescript.md",
+      "code-style-go.md",
+      "testing.md"
+    ],
+    "forbidden_files": [
+      "code-style.md"
+    ],
+    "file_checks": {
+      "code-style-typescript.md": {
+        "has_frontmatter": true,
+        "frontmatter_contains": ["frontend/src"],
+        "frontmatter_not_contains": ["backend/"],
+        "content_contains": ["Defer to Prettier"]
+      },
+      "code-style-go.md": {
+        "has_frontmatter": true,
+        "frontmatter_contains": ["backend/"],
+        "frontmatter_not_contains": [".tsx", "frontend/"],
+        "content_contains": ["Defer to golangci-lint"]
+      },
+      "testing.md": {
+        "has_frontmatter": true,
+        "frontmatter_contains": [".test.tsx", "_test.go"]
+      }
+    }
+  },
+  "expected_behavior": [
+    "Detects monorepo from multiple language configs at top level (package.json + go.mod)",
+    "Spawns parallel subagents: structure+config analyzer + TypeScript source analyzer + Go source analyzer",
+    "Generates per-language code-style files: code-style-typescript.md and code-style-go.md",
+    "Scopes TypeScript paths to frontend/ subdirectory (e.g., frontend/src/**/*.{ts,tsx})",
+    "Scopes Go paths to backend/ subdirectory (e.g., backend/**/*.go)",
+    "Excludes .tsx from code-style-go.md paths",
+    "Excludes frontend/ from code-style-go.md paths",
+    "Excludes backend/ from code-style-typescript.md paths",
+    "Defers TypeScript formatting rules to Prettier",
+    "Defers Go static analysis rules to golangci-lint",
+    "Generates testing.md covering both test patterns (*.test.tsx and *_test.go)",
+    "Presents generation plan with per-language file list and waits for user confirmation",
+    "All generated files pass validate_rules.py"
+  ]
+}

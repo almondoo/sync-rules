@@ -13,7 +13,7 @@
 
 ## Analysis Procedure
 
-This section defines the step-by-step procedure for analyzing a project. This procedure runs inside a subagent, so token efficiency is secondary to analysis accuracy. Follow these steps in order.
+This section defines the complete set of analysis steps. Subagents execute a subset of these steps as specified in their dispatch prompt (see SKILL.md Step 1 for which steps apply to each subagent type). Within each subagent, follow the assigned steps in order.
 
 ### File Structure Scan
 

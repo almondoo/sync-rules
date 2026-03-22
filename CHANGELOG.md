@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.0.5] - 2026-03-22
+
+### Added
+- Content quality reviewer prompt template for subagent-based rule review
+- Actionability guidelines in rule-format.md (concrete Bad/Good examples for machine-followable rules)
+- Paths match verification step in Step 7 (Glob validation before content quality check)
+- Rule accuracy classification enforcement in Step 6 (universal/common/conditional)
+- Monorepo test fixture (TypeScript + Go) with eval scenario JSON
+- Content quality review loop in Step 7 (subagent dispatch, max 3 iterations)
+
+### Changed
+- Unify analysis strategy: always use parallel subagents (structure+config + source analyzer per language) for all project types, removing single-agent `very thorough` path
+- Step 2 now checks both repository root `CLAUDE.md` and `.claude/CLAUDE.md`
+- Update analysis-guide.md procedure intro to reflect parallel subagent execution
+
 ## [1.0.4] - 2026-03-21
 
 ### Changed

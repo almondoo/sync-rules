@@ -77,6 +77,19 @@ paths:
   - Bad: "Write clean code"
   - Good: "Limit function parameters to 4. Use an options object/struct when more are needed"
 
+### Actionability
+
+Rules must tell Claude Code what to DO, not what to BE. Each rule should be concrete enough that an AI coding assistant can follow it without interpretation.
+
+- Bad: "Write clean, readable code"
+- Good: "Name boolean variables with is/has/should prefix (e.g., isActive, hasPermission)"
+
+- Bad: "Follow project conventions"
+- Good: "Import ordering: external packages first, then internal modules, separated by blank line"
+
+- Bad: "Handle errors properly"
+- Good: "Wrap errors with context using fmt.Errorf(\"%s: %w\", context, err)"
+
 ### Good / Bad Examples
 - Include at least one Good/Bad example per section
 - Write examples using detected language idioms
